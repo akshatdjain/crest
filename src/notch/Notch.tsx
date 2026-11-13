@@ -3,7 +3,7 @@ import { AnimatePresence, animate, frame, motion, useMotionValue, useReducedMoti
 import { GearSix, PushPin } from "@phosphor-icons/react";
 import { content, springs } from "../design/motion";
 import { livePosition, useNowPlaying } from "../platform/media";
-import { isMac, isNative, keyboardFocus, onNativeBlur, onNativeHover, onNativeHoverAt, onShortcut, onTrayOpen, setHitRect, setMemoryLow } from "../platform/native";
+import { noWinApis, isNative, keyboardFocus, onNativeBlur, onNativeHover, onNativeHoverAt, onShortcut, onTrayOpen, setHitRect, setMemoryLow } from "../platform/native";
 import { PrivacyDots, usePrivacyDots } from "../features/privacy/PrivacyDots";
 import { privacy, usePresenting } from "../features/privacy/store";
 import { fullscreen, useGamingLive } from "../features/system/gaming";
@@ -182,7 +182,7 @@ export function Notch() {
   const broken = glassBroken.use();
   const shot = snapshot.use();
   // Switched off with a copy on screen, the layer stays until the copy goes: its full veil covers the copy while --shape comes back.
-  const armed = (themes.glass || shot.ready) && !isMac && !broken;
+  const armed = (themes.glass || shot.ready) && !noWinApis && !broken;
   // Each store hook runs on every render, as for `urgent` above.
   const presentingMode = usePresenting();
   const sharing = privacy.use().screen;
@@ -197,12 +197,12 @@ export function Notch() {
     saver: powerState.use()?.saver === true, fullscreen: fullscreen.use() || gaming, hidden: hiddenForFullscreen || windowHidden,
     presenting, cover: backdrop, dragging: drag.dragging, editing,
   };
-  const allowed = glassAllowed({ on: themes.glass, windows: !isMac, fits: glassFits, webgl: !broken, ...blocks });
+  const allowed = glassAllowed({ on: themes.glass, windows: !noWinApis, fits: glassFits, webgl: !broken, ...blocks });
   // The live glass (glass/live.ts): the closed notch on the top edge and the capsule, never the line; not while the session is locked,
   // away on a remote client or asleep either.
   const support = liveSupport.use(), session = liveSession.use();
   const liveAllowed =
-    glassAllowed({ on: themes.glass && themes.glassLive && support?.supported === true, windows: !isMac, fits: edge === "top" && !idleLine, webgl: !broken, ...blocks }) &&
+    glassAllowed({ on: themes.glass && themes.glassLive && support?.supported === true, windows: !noWinApis, fits: edge === "top" && !idleLine, webgl: !broken, ...blocks }) &&
     !session.locked && !session.remote && !session.asleep;
   // The open panel draws over the copy taken as it opens (snapshot.ts) and keeps it as it closes, under the closed colour coming back;
   // the closed shapes and the peek draw over the live copy (live.ts). Whether a panel is closing is state set during render, React's way
@@ -1005,11 +1005,20 @@ function useNativeBridge(
     };
     el.addEventListener("focusin", onFocusIn);
     el.addEventListener("focusout", onFocusOut);
+    // A focused field that is removed (switching to another tool) sends no focusout in WebKit (WebView2 does), and the hold
+    // would stay for good: the notch then never closes. Looked at whenever the page changes.
+    const mo = new MutationObserver(() => {
+      if (typing && !isTextField(document.activeElement)) {
+        holdOpen((typing = false));
+      }
+    });
+    mo.observe(el, { childList: true, subtree: true });
 
     return () => {
       ro.disconnect();
       offTop();
       offHover();
+      mo.disconnect();
       el.removeEventListener("focusin", onFocusIn);
       el.removeEventListener("focusout", onFocusOut);
       if (typing) holdOpen(false);
