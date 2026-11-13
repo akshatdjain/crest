@@ -4,9 +4,11 @@
 
 pub mod audio;
 pub mod clipboard;
+pub mod controls;
 pub mod input;
 pub mod media;
 pub mod mixer;
+pub mod quick;
 pub mod secrets;
 #[path = "../macos/mirror.rs"]
 pub mod mirror;

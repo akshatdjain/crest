@@ -50,7 +50,7 @@ mod sys {
     }
 }
 
-#[cfg(not(windows))]
+#[cfg(target_os = "macos")]
 mod sys {
     use std::process::{Command, Stdio};
     use std::sync::atomic::{AtomicU8, Ordering};
@@ -103,14 +103,35 @@ mod sys {
     }
 }
 
+/// Linux: the default microphone through WirePlumber.
+#[cfg(target_os = "linux")]
+mod sys {
+    use std::process::Command;
+
+    const SOURCE: &str = "@DEFAULT_AUDIO_SOURCE@";
+
+    /// `Volume: 1.00 [MUTED]`. None without a microphone.
+    pub fn muted() -> Option<bool> {
+        let out = Command::new("wpctl").args(["get-volume", SOURCE]).output().ok().filter(|o| o.status.success())?;
+        let text = String::from_utf8_lossy(&out.stdout);
+        text.trim().starts_with("Volume:").then(|| text.contains("[MUTED]"))
+    }
+
+    pub fn set_muted(on: bool) -> Result<(), String> {
+        muted().ok_or("none")?;
+        let done = Command::new("wpctl").args(["set-mute", SOURCE, if on { "1" } else { "0" }]).status().map_err(|_| "failed".to_string())?;
+        done.success().then_some(()).ok_or_else(|| "failed".to_string())
+    }
+}
+
 /// `osascript` answers "missing value" for an input without a level.
-#[cfg_attr(windows, allow(dead_code))]
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn level_from(answer: &str) -> Option<u8> {
     answer.trim().parse::<u8>().ok().filter(|l| *l <= 100)
 }
 
 /// Where unmuting goes back to: the level before the mute, or a usual one when there is none to go back to.
-#[cfg_attr(windows, allow(dead_code))]
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
 fn restore_level(before: u8) -> u8 {
     if before == 0 { 75 } else { before }
 }

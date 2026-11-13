@@ -342,6 +342,32 @@ pub fn run() {
             linux::mixer::mixer_list,
             #[cfg(target_os = "linux")]
             linux::mixer::mixer_set,
+            #[cfg(target_os = "linux")]
+            linux::controls::volume_get,
+            #[cfg(target_os = "linux")]
+            linux::controls::volume_set,
+            #[cfg(target_os = "linux")]
+            linux::controls::audio_outputs,
+            #[cfg(target_os = "linux")]
+            linux::controls::audio_set_output,
+            #[cfg(target_os = "linux")]
+            linux::controls::brightness_get,
+            #[cfg(target_os = "linux")]
+            linux::controls::brightness_set,
+            #[cfg(target_os = "linux")]
+            linux::controls::keep_awake_set,
+            #[cfg(target_os = "linux")]
+            linux::controls::focus_get,
+            #[cfg(target_os = "linux")]
+            linux::controls::focus_set,
+            #[cfg(target_os = "linux")]
+            linux::quick::quick_get,
+            #[cfg(target_os = "linux")]
+            linux::quick::quick_radio,
+            #[cfg(target_os = "linux")]
+            linux::quick::quick_dark,
+            #[cfg(target_os = "linux")]
+            linux::quick::quick_power,
             tray_texts,
             #[cfg(windows)]
             controls::focus_get,
