@@ -1,5 +1,5 @@
 import { createStore, setAside } from "../lib/store";
-import { isMac } from "../platform/native";
+import { noWinApis } from "../platform/native";
 import { isLanguage, type LanguageSetting } from "../i18n/core";
 import type { AlarmDuration, AlarmSound } from "../lib/sound";
 import { CLOSED_DEFAULTS, normalizeClosed, type ClosedSettings } from "../notch/row/parts";
@@ -299,7 +299,7 @@ function migrate({ language: _old, ...s }: Settings & { language?: unknown }): S
       ...s.display,
       focusStyle: s.display?.focusStyle === "line" ? "line" : "dim",
       focusClicks: s.display?.focusClicks === true,
-      y: fitCapsuleTop(s.display?.y), monitorMode: isMac ? "chosen" : normalizeMonitorMode(s.display?.monitorMode) },
+      y: fitCapsuleTop(s.display?.y), monitorMode: noWinApis ? "chosen" : normalizeMonitorMode(s.display?.monitorMode) },
     gaming: { ...defaults.gaming, ...s.gaming },
     discord: { ...defaults.discord, ...s.discord },
     alarm: { ...defaults.alarm, ...s.alarm },
