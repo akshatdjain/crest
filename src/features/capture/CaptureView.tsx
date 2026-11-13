@@ -12,6 +12,7 @@ import { usePresenting } from "../privacy/store";
 import { locale, t } from "../../i18n";
 import { elapsedAt, formatElapsed } from "./clock";
 import { libraryEpoch, pauseRecording, recording, startRecording, stopRecording, takeShot } from "./store";
+import { isLinux } from "../../platform/native";
 
 /*
  * Capture: screenshots (all screens, one monitor, or a region) and screen recordings
@@ -66,14 +67,17 @@ export function CaptureView() {
 
   return (
     <div className="flex h-full flex-col gap-2 px-4 pt-1 pb-2">
-      <HeaderActions>
-        <HeaderButton label={t("Bildschirmfotos auch in die Ablage")} active={cfg.shelf} onClick={() => setCapture({ shelf: !cfg.shelf })}>
-          <Tray size={14} weight={cfg.shelf ? "fill" : "bold"} />
-        </HeaderButton>
-        <HeaderButton label={cfg.border ? t("Gelben Aufnahmerahmen ausblenden") : t("Gelben Aufnahmerahmen zeigen")} active={cfg.border} onClick={() => setCapture({ border: !cfg.border })}>
-          <BoundingBox size={14} weight="bold" />
-        </HeaderButton>
-      </HeaderActions>
+      {/* The shelf and the recording frame are Windows' (recording has no Linux version yet). */}
+      {!isLinux && (
+        <HeaderActions>
+          <HeaderButton label={t("Bildschirmfotos auch in die Ablage")} active={cfg.shelf} onClick={() => setCapture({ shelf: !cfg.shelf })}>
+            <Tray size={14} weight={cfg.shelf ? "fill" : "bold"} />
+          </HeaderButton>
+          <HeaderButton label={cfg.border ? t("Gelben Aufnahmerahmen ausblenden") : t("Gelben Aufnahmerahmen zeigen")} active={cfg.border} onClick={() => setCapture({ border: !cfg.border })}>
+            <BoundingBox size={14} weight="bold" />
+          </HeaderButton>
+        </HeaderActions>
+      )}
 
       <div className="flex items-center gap-2">
         <span className="min-w-[84px] shrink-0 whitespace-nowrap text-footnote text-label-2">{t("Bildschirmfoto")}</span>
@@ -93,27 +97,30 @@ export function CaptureView() {
         </Button>
       </div>
 
-      <div className="flex h-7 items-center gap-2">
-        <span className="min-w-[84px] shrink-0 whitespace-nowrap text-footnote text-label-2">{t("Video")}</span>
-        {idle || rec.audio ? (
-          <>
-            <Select
-              value={source}
-              width="w-44"
-              options={sources.map((s) => ({ value: s.id, label: label(s) }))}
-              onChange={(v) => setCapture({ source: v })}
-            />
-            <Segmented id="capture-fps" size="sm" value={String(cfg.fps)} options={[{ value: "30", label: "30" }, { value: "60", label: "60" }]} onChange={(v) => setCapture({ fps: v === "60" ? 60 : 30 })} />
-            <Toggle on={cfg.mic} icons={[Microphone, MicrophoneSlash]} labels={[t("Mit Mikrofon"), t("Ohne Mikrofon")]} onChange={(mic) => setCapture({ mic })} />
-            <Toggle on={cfg.system} icons={[SpeakerHigh, SpeakerSlash]} labels={[t("Mit Systemton"), t("Ohne Systemton")]} onChange={(system) => setCapture({ system })} />
-            <Button icon={Record} primary disabled={busy || !source || !idle} onClick={record}>
-              {starting ? t("Startet …") : t("Aufzeichnen")}
-            </Button>
-          </>
-        ) : (
-          <Running />
-        )}
-      </div>
+      {/* Screen recording needs a screencast session and an encoder: not on Linux yet. */}
+      {!isLinux && (
+        <div className="flex h-7 items-center gap-2">
+          <span className="min-w-[84px] shrink-0 whitespace-nowrap text-footnote text-label-2">{t("Video")}</span>
+          {idle || rec.audio ? (
+            <>
+              <Select
+                value={source}
+                width="w-44"
+                options={sources.map((s) => ({ value: s.id, label: label(s) }))}
+                onChange={(v) => setCapture({ source: v })}
+              />
+              <Segmented id="capture-fps" size="sm" value={String(cfg.fps)} options={[{ value: "30", label: "30" }, { value: "60", label: "60" }]} onChange={(v) => setCapture({ fps: v === "60" ? 60 : 30 })} />
+              <Toggle on={cfg.mic} icons={[Microphone, MicrophoneSlash]} labels={[t("Mit Mikrofon"), t("Ohne Mikrofon")]} onChange={(mic) => setCapture({ mic })} />
+              <Toggle on={cfg.system} icons={[SpeakerHigh, SpeakerSlash]} labels={[t("Mit Systemton"), t("Ohne Systemton")]} onChange={(system) => setCapture({ system })} />
+              <Button icon={Record} primary disabled={busy || !source || !idle} onClick={record}>
+                {starting ? t("Startet …") : t("Aufzeichnen")}
+              </Button>
+            </>
+          ) : (
+            <Running />
+          )}
+        </div>
+      )}
 
       <AnimatePresence>
         {warning && (

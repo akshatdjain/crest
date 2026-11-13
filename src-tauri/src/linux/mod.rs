@@ -3,6 +3,8 @@
 //! The audio and monitor watchers are the Mac's, which only use Tauri.
 
 pub mod audio;
+pub mod camera;
+pub mod capture;
 pub mod clipboard;
 pub mod controls;
 pub mod idle;
@@ -10,6 +12,7 @@ pub mod input;
 pub mod media;
 pub mod mixer;
 pub mod notices;
+pub mod portal;
 pub mod quick;
 pub mod status;
 pub mod system;

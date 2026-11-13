@@ -388,6 +388,26 @@ pub fn run() {
             linux::notices::notices_answer,
             #[cfg(target_os = "linux")]
             linux::notices::notices_copy_code,
+            #[cfg(target_os = "linux")]
+            linux::capture::colour_pick,
+            #[cfg(target_os = "linux")]
+            linux::capture::capture_sources,
+            #[cfg(target_os = "linux")]
+            linux::capture::capture_shot,
+            #[cfg(target_os = "linux")]
+            linux::capture::capture_state,
+            #[cfg(target_os = "linux")]
+            linux::capture::capture_start,
+            #[cfg(target_os = "linux")]
+            linux::capture::capture_pause,
+            #[cfg(target_os = "linux")]
+            linux::capture::capture_stop,
+            #[cfg(target_os = "linux")]
+            linux::capture::capture_list,
+            #[cfg(target_os = "linux")]
+            linux::capture::capture_details,
+            #[cfg(target_os = "linux")]
+            linux::capture::capture_delete,
             tray_texts,
             #[cfg(windows)]
             controls::focus_get,
@@ -651,6 +671,7 @@ pub fn run() {
             {
                 linux::input::install(&window);
                 linux::clipboard::install();
+                linux::camera::install(&window);
                 linux::input::apply(&window, Some(Vec::new()));
             }
             #[cfg(windows)]
