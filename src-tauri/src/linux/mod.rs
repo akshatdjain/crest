@@ -11,6 +11,7 @@ pub mod media;
 pub mod mixer;
 pub mod quick;
 pub mod status;
+pub mod system;
 pub mod secrets;
 #[path = "../macos/mirror.rs"]
 pub mod mirror;

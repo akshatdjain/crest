@@ -223,6 +223,8 @@ pub fn run() {
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, None))
         // Updates: signed installers from GitHub, only on click in the settings.
         .plugin(tauri_plugin_updater::Builder::new().build());
+    #[cfg(target_os = "linux")]
+    let builder = builder.manage(linux::system::SystemState::default());
     #[cfg(windows)]
     let builder = builder
         .manage(mixer::MixerState::default())
@@ -368,6 +370,10 @@ pub fn run() {
             linux::quick::quick_dark,
             #[cfg(target_os = "linux")]
             linux::quick::quick_power,
+            #[cfg(target_os = "linux")]
+            linux::system::system_stats,
+            #[cfg(target_os = "linux")]
+            linux::system::system_icon,
             tray_texts,
             #[cfg(windows)]
             controls::focus_get,

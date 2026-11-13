@@ -394,8 +394,120 @@ use win as platform;
 #[cfg(target_os = "macos")]
 use mac as platform;
 
-/// Neither Windows nor a Mac: nothing to read, nothing to end.
-#[cfg(not(any(windows, target_os = "macos")))]
+/// Linux: the kernel's own socket tables. A listening socket is a line of /proc/net/tcp with state 0A and an inode, and the process
+/// that owns the inode has a `socket:[inode]` link among its descriptors. Only the user's own processes can be looked into, which
+/// is also the only ones "End process" is offered for.
+#[cfg(target_os = "linux")]
+mod linux_platform {
+    use std::collections::HashMap;
+    use std::fs;
+    use std::os::unix::fs::MetadataExt;
+
+    use super::*;
+
+    /// A listening socket of /proc/net/tcp or tcp6: its address, port, owner and inode.
+    #[derive(Debug, PartialEq)]
+    pub(super) struct Socket {
+        pub(super) addr: IpAddr,
+        pub(super) port: u16,
+        pub(super) uid: u32,
+        pub(super) inode: u64,
+    }
+
+    /// "0100007F" is 127.0.0.1: the four bytes of an address in the order the kernel stores them.
+    fn ipv4(hex: &str) -> Option<Ipv4Addr> {
+        Some(Ipv4Addr::from(u32::from_str_radix(hex, 16).ok()?.to_le_bytes()))
+    }
+
+    /// Four such groups make an IPv6 address.
+    fn ipv6(hex: &str) -> Option<Ipv6Addr> {
+        if hex.len() != 32 {
+            return None;
+        }
+        let mut bytes = [0u8; 16];
+        for (i, group) in (0..4).zip(bytes.chunks_exact_mut(4)) {
+            group.copy_from_slice(&u32::from_str_radix(&hex[i * 8..i * 8 + 8], 16).ok()?.to_le_bytes());
+        }
+        Some(Ipv6Addr::from(bytes))
+    }
+
+    pub(super) fn parse(table: &str, v6: bool) -> Vec<Socket> {
+        table
+            .lines()
+            .skip(1)
+            .filter_map(|line| {
+                let f: Vec<&str> = line.split_whitespace().collect();
+                // sl, local_address, rem_address, st, tx:rx, tr:when, retrnsmt, uid, timeout, inode
+                if f.len() < 10 || f[3] != "0A" {
+                    return None;
+                }
+                let (host, port) = f[1].rsplit_once(':')?;
+                let addr = if v6 { IpAddr::V6(ipv6(host)?) } else { IpAddr::V4(ipv4(host)?) };
+                Some(Socket { addr, port: u16::from_str_radix(port, 16).ok()?, uid: f[7].parse().ok()?, inode: f[9].parse().ok()? })
+            })
+            .collect()
+    }
+
+    /// The process (and its executable) of each socket inode, among the processes that can be looked into.
+    fn owners() -> HashMap<u64, (u32, String, Option<String>)> {
+        let mut found = HashMap::new();
+        for entry in fs::read_dir("/proc").into_iter().flatten().flatten() {
+            let Some(pid) = entry.file_name().to_str().and_then(|n| n.parse::<u32>().ok()) else { continue };
+            let Ok(fds) = fs::read_dir(entry.path().join("fd")) else { continue };
+            let exe = fs::read_link(entry.path().join("exe")).ok().map(|p| p.to_string_lossy().into_owned());
+            let name = exe
+                .as_deref()
+                .and_then(|e| e.rsplit('/').next())
+                .map(str::to_string)
+                .or_else(|| fs::read_to_string(entry.path().join("comm")).ok().map(|c| c.trim().to_string()))
+                .unwrap_or_default();
+            for fd in fds.flatten() {
+                let Ok(target) = fs::read_link(fd.path()) else { continue };
+                if let Some(inode) = target.to_string_lossy().strip_prefix("socket:[").and_then(|t| t.strip_suffix(']')).and_then(|n| n.parse::<u64>().ok()) {
+                    found.entry(inode).or_insert_with(|| (pid, name.clone(), exe.clone()));
+                }
+            }
+        }
+        found
+    }
+
+    pub fn read() -> Result<Vec<Listener>, String> {
+        let own_uid = fs::metadata("/proc/self").map(|m| m.uid()).unwrap_or(u32::MAX);
+        let own = std::process::id();
+        let owners = owners();
+        let mut sockets = parse(&fs::read_to_string("/proc/net/tcp").unwrap_or_default(), false);
+        sockets.extend(parse(&fs::read_to_string("/proc/net/tcp6").unwrap_or_default(), true));
+        let all = sockets
+            .into_iter()
+            .map(|s| {
+                let (pid, name, path) = owners.get(&s.inode).cloned().unwrap_or((0, String::new(), None));
+                // A socket whose owner cannot be looked into (another user's, the system's) is listed but never offered for ending.
+                let can_end = pid != 0 && may_end(pid, own, s.uid == own_uid, path.as_deref(), "");
+                Listener { port: s.port, addr: s.addr.to_string(), pid, name, path, can_end }
+            })
+            .collect();
+        Ok(finish(all))
+    }
+
+    pub fn end(pid: u32, port: u16) -> Result<End, String> {
+        let Some(listener) = read()?.into_iter().find(|l| l.pid == pid && l.port == port) else { return Ok(End::Gone) };
+        if !listener.can_end {
+            return Ok(End::Denied);
+        }
+        let done = std::process::Command::new("kill").args(["-TERM", &pid.to_string()]).status().is_ok_and(|s| s.success());
+        Ok(if done { End::Ended } else { End::Denied })
+    }
+
+    pub fn reachable_on_localhost(port: u16) -> bool {
+        read().is_ok_and(|all| all.iter().any(|l| l.port == port && l.addr.parse::<IpAddr>().is_ok_and(answers_on_localhost)))
+    }
+}
+
+#[cfg(target_os = "linux")]
+use linux_platform as platform;
+
+/// Neither Windows, a Mac nor Linux: nothing to read, nothing to end.
+#[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
 mod platform {
     use super::*;
 
@@ -439,6 +551,37 @@ pub async fn ports_open(port: u16) -> Result<(), String> {
         crate::open_url(&format!("http://localhost:{port}"))
     })
     .await
+}
+
+#[cfg(all(test, target_os = "linux"))]
+mod linux_tests {
+    use super::linux_platform::*;
+    use super::*;
+
+    const V4: &str = "  sl  local_address rem_address   st tx_queue rx_queue tr tm->when retrnsmt   uid  timeout inode\n   0: 0100007F:1F90 00000000:0000 0A 00000000:00000000 00:00000000 00000000  1000        0 12345 1 0000000000000000 100 0 0 10 0\n   1: 0100007F:0035 0100007F:C000 01 00000000:00000000 00:00000000 00000000     0        0 999 1 0000000000000000 100 0 0 10 0\n   2: 00000000:1BB0 00000000:0000 0A 00000000:00000000 00:00000000 00000000     0        0 777 1 0000000000000000 100 0 0 10 0\n";
+
+    #[test]
+    fn listening_sockets_are_read_from_the_kernel_table() {
+        let sockets = parse(V4, false);
+        assert_eq!(sockets.len(), 2, "the established connection is not a listener");
+        assert_eq!((sockets[0].addr, sockets[0].port, sockets[0].uid, sockets[0].inode), ("127.0.0.1".parse::<IpAddr>().unwrap(), 8080, 1000, 12345));
+        assert_eq!((sockets[1].addr, sockets[1].port), ("0.0.0.0".parse::<IpAddr>().unwrap(), 7088));
+    }
+
+    #[test]
+    fn ipv6_addresses_are_four_host_order_groups() {
+        // ::1 is stored as 00000000 00000000 00000000 01000000.
+        let v6 = "  sl  local_address rem_address st tx_queue rx_queue tr tm->when retrnsmt uid timeout inode\n   0: 00000000000000000000000001000000:0BB8 00000000000000000000000000000000:0000 0A 00000000:00000000 00:00000000 00000000  1000 0 4242 1 0\n";
+        let s = parse(v6, true);
+        assert_eq!((s[0].addr, s[0].port, s[0].inode), ("::1".parse::<IpAddr>().unwrap(), 3000, 4242));
+        assert!(parse("garbage\nmore", true).is_empty());
+    }
+
+    #[test]
+    fn the_live_table_reads_without_error() {
+        // Whatever listens on this machine, the real tables must parse and the listing must work.
+        assert!(read().is_ok());
+    }
 }
 
 #[cfg(test)]

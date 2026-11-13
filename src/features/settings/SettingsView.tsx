@@ -390,7 +390,7 @@ function PageContent({ page }: { page: PageId }) {
       {page === "tools" && (
         <>
           <Tools />
-          {!noWinApis && <SystemSettings />}
+          {!isMac && <SystemSettings />}
           {findTab("vault") && <VaultSettings />}
           <ProductivitySettings />
           {findTab("terminal") && <TerminalSettings />}
@@ -1006,6 +1006,8 @@ function PetSettingsRows() {
 
 /** Closed-row parts fed by Windows-only code (hardware readings, the Discord tool, the download watcher). */
 const NO_MAC_PARTS = new Set<PartId>(["readings", "discord", "downloads"]);
+/** On Linux the hardware readings have a backend; the Discord tool and the download watcher do not. */
+const NO_LINUX_PARTS = new Set<PartId>(["discord", "downloads"]);
 
 /** Parts of the closed row (notch and capsule share them): drag to reorder, switch on/off. Same pattern as `Tools()`. */
 function ClosedParts() {
@@ -1015,7 +1017,7 @@ function ClosedParts() {
   // Only these always show; battery, power and temperature can be missing, so they cannot keep the part alone. The network
   // counts too, so the part can show only the download and upload speed (issue #11).
   const mainReadings = ["cpu", "ram", "gpu", "net"] as const;
-  const shown = c.order.filter((id) => !(noWinApis && NO_MAC_PARTS.has(id)));
+  const shown = c.order.filter((id) => !(isMac && NO_MAC_PARTS.has(id)) && !(isLinux && NO_LINUX_PARTS.has(id)));
   const readingsOn = mainReadings.filter((k) => c.readings[k]).length;
   const iconColors = useIconColors();
   // What a part shows nothing without; the part itself says so while it is on.
