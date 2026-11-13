@@ -582,6 +582,9 @@ pub fn run() {
             shell::init(app);
             let window = portable::create_window(app)?;
             display::place(&window, &app.state::<display::DisplayState>())?;
+            // Before show(): the window manager reads the type when the window is mapped.
+            #[cfg(target_os = "linux")]
+            linux::apply_window_hints(&window);
             window.show()?;
             // On every workspace, like the Mac's CanJoinAllSpaces.
             #[cfg(target_os = "linux")]

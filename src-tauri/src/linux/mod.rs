@@ -23,6 +23,39 @@ pub fn prefer_x11() {
     }
 }
 
+/// Desktops whose window manager already keeps an always-on-top, skip-taskbar window floating and out of the way. Crest's
+/// behaviour there is as tested and stays as it is.
+const FULL_DESKTOPS: [&str; 14] = ["gnome", "ubuntu", "kde", "plasma", "xfce", "x-cinnamon", "cinnamon", "mate", "lxqt", "lxde", "budgie", "pantheon", "deepin", "cosmic"];
+
+/// The X11 window type the notch asks for, if it should ask for one.
+///
+/// A tiling window manager (i3, Sway, Hyprland, bspwm ...) tiles an ordinary window, which is wrong for an overlay at the screen
+/// edge. Those managers float a window of one of the dialog-like types, so on a desktop that is not one of FULL_DESKTOPS the
+/// notch is a `utility` window. `CREST_WINDOW_TYPE` (normal, utility, dock, notification, splash, dialog) overrides this.
+pub fn window_type(desktop: &str, choice: Option<&str>) -> Option<gtk::gdk::WindowTypeHint> {
+    use gtk::gdk::WindowTypeHint as Hint;
+    match choice.map(str::to_ascii_lowercase).as_deref() {
+        Some("normal") => return None,
+        Some("utility") => return Some(Hint::Utility),
+        Some("dock") => return Some(Hint::Dock),
+        Some("notification") => return Some(Hint::Notification),
+        Some("splash") => return Some(Hint::Splashscreen),
+        Some("dialog") => return Some(Hint::Dialog),
+        _ => {}
+    }
+    let full = desktop.split(':').any(|d| FULL_DESKTOPS.contains(&d.trim().to_ascii_lowercase().as_str()));
+    (!full).then_some(Hint::Utility)
+}
+
+/// Sets the window type before the window is shown (the manager reads it when the window is mapped).
+pub fn apply_window_hints(window: &WebviewWindow) {
+    let desktop = std::env::var("XDG_CURRENT_DESKTOP").unwrap_or_default();
+    let choice = std::env::var("CREST_WINDOW_TYPE").ok();
+    if let (Some(hint), Ok(gtk_window)) = (window_type(&desktop, choice.as_deref()), window.gtk_window()) {
+        gtk::prelude::GtkWindowExt::set_type_hint(&gtk_window, hint);
+    }
+}
+
 /// The left mouse button is held (hit_test.rs). Linux does not poll the pointer (input.rs), so this is only here for the shared
 /// code to build; nothing calls it.
 #[allow(dead_code)]
@@ -95,3 +128,28 @@ pub fn glass_live_start() -> Result<(), String> {
 
 #[tauri::command]
 pub fn glass_live_stop() {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use gtk::gdk::WindowTypeHint as Hint;
+
+    #[test]
+    fn full_desktops_keep_a_normal_window_and_tiling_ones_get_a_utility_window() {
+        for full in ["ubuntu:GNOME", "GNOME", "KDE", "X-Cinnamon", "XFCE", "Budgie:GNOME"] {
+            assert_eq!(window_type(full, None), None, "{full}");
+        }
+        for tiling in ["sway", "Hyprland", "i3", "", "bspwm", "river"] {
+            assert_eq!(window_type(tiling, None), Some(Hint::Utility), "{tiling:?}");
+        }
+    }
+
+    #[test]
+    fn the_environment_overrides_the_choice() {
+        assert_eq!(window_type("sway", Some("normal")), None);
+        assert_eq!(window_type("GNOME", Some("Dock")), Some(Hint::Dock));
+        assert_eq!(window_type("GNOME", Some("splash")), Some(Hint::Splashscreen));
+        // An unknown value falls back to the desktop's own choice.
+        assert_eq!(window_type("GNOME", Some("nonsense")), None);
+    }
+}
