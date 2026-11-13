@@ -34,10 +34,10 @@ use windows::Win32::UI::WindowsAndMessaging::GetForegroundWindow;
 use crate::now_ms;
 
 // The Win32 name on a Mac too, so the call sites below are the same on both.
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 #[allow(non_snake_case)]
 unsafe fn GetClipboardSequenceNumber() -> u32 {
-    crate::macos::pasteboard_change_count()
+    crate::native::pasteboard_change_count()
 }
 
 const MAX_ITEMS: usize = 40;
@@ -189,8 +189,8 @@ pub fn clipboard_copy(id: u64, app: AppHandle, state: State<'_, ClipboardState>)
 #[tauri::command]
 pub fn clipboard_paste(id: u64, app: AppHandle, state: State<'_, ClipboardState>) -> Result<bool, String> {
     clipboard_copy(id, app.clone(), state)?;
-    #[cfg(target_os = "macos")]
-    if !crate::macos::may_press_keys() {
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
+    if !crate::native::may_press_keys() {
         return Ok(false);
     }
     let Some(target) = crate::return_keyboard(&app) else { return Ok(false) };
@@ -198,8 +198,8 @@ pub fn clipboard_paste(id: u64, app: AppHandle, state: State<'_, ClipboardState>
     thread::spawn(move || {
         #[cfg(windows)]
         let front = || unsafe { GetForegroundWindow() }.0 as isize;
-        #[cfg(target_os = "macos")]
-        let front = || crate::macos::frontmost_pid() as isize;
+        #[cfg(any(target_os = "macos", target_os = "linux"))]
+        let front = || crate::native::frontmost_pid() as isize;
         // Pressed only once the app is in front, or the keys would land in whatever is.
         if wait_for(Duration::from_millis(500), || front() == target) {
             press_paste();
@@ -227,8 +227,8 @@ fn press_paste() {
     unsafe { SendInput(&ctrl_v(), std::mem::size_of::<INPUT>() as i32) };
 }
 
-#[cfg(target_os = "macos")]
-use crate::macos::press_paste;
+#[cfg(any(target_os = "macos", target_os = "linux"))]
+use crate::native::press_paste;
 
 /// Ctrl+V as four key events. Virtual keys, so the keyboard layout doesn't matter.
 #[cfg(windows)]
@@ -433,17 +433,17 @@ impl PrivateFormats {
 }
 
 /// On a Mac the marks are pasteboard types, read on each change (macos/mod.rs).
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 struct PrivateFormats;
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 impl PrivateFormats {
     fn register() -> Self {
         PrivateFormats
     }
 
     fn is_private(&self) -> Option<bool> {
-        Some(crate::macos::pasteboard_is_private())
+        Some(crate::native::pasteboard_is_private())
     }
 }
 
@@ -502,11 +502,21 @@ fn is_url(text: &str) -> bool {
         && (text.starts_with("http://") || text.starts_with("https://") || text.starts_with("www."))
 }
 
+/// The same text, or the same picture: copying an entry back from the history must not add it a second time. Pictures are
+/// compared by size and PNG bytes, which is exact because the encoder gives the same bytes for the same pixels.
+fn same(a: &Content, b: &Content) -> bool {
+    match (a, b) {
+        (Content::Text(a), Content::Text(b)) => a == b,
+        (Content::Image(a), Content::Image(b)) => a.width == b.width && a.height == b.height && a.png == b.png,
+        _ => false,
+    }
+}
+
 fn add(state: &ClipboardState, content: Content) {
-    // Same text copied again: move the existing entry to the top.
-    if let Content::Text(new) = &content {
+    // Same text or picture copied again: move the existing entry to the top.
+    if matches!(content, Content::Text(_) | Content::Image(_)) {
         let mut entries = state.entries.lock().unwrap();
-        if let Some(i) = entries.iter().position(|e| matches!(&e.content, Content::Text(t) if t == new)) {
+        if let Some(i) = entries.iter().position(|e| same(&e.content, &content)) {
             let mut entry = entries.remove(i);
             entry.item.copied_at = now_ms();
             entries.insert(0, entry);
@@ -616,6 +626,17 @@ fn emit(app: &AppHandle, state: &ClipboardState) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_same_text_or_picture_is_one_entry() {
+        let image = |png: &[u8]| Content::Image(StoredImage { width: 2, height: 1, png: png.to_vec(), thumbnail: String::new() });
+        assert!(same(&image(b"a"), &image(b"a")));
+        assert!(!same(&image(b"a"), &image(b"b")), "other pixels");
+        assert!(!same(&image(b"a"), &Content::Text("a".into())));
+        assert!(same(&Content::Text("x".into()), &Content::Text("x".into())));
+        let other_size = Content::Image(StoredImage { width: 1, height: 2, png: b"a".to_vec(), thumbnail: String::new() });
+        assert!(!same(&image(b"a"), &other_size));
+    }
+
     use super::*;
 
     /// A UI-like tile: flat panels with rows of pseudo-random "glyphs" (fixed seed), like a window of text.
