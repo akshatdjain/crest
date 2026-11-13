@@ -459,10 +459,16 @@ pub fn run() {
             macos::quick::quick_power,
             #[cfg(any(target_os = "macos", target_os = "linux"))]
             native::memory_low,
-            #[cfg(any(target_os = "macos", target_os = "linux"))]
+            #[cfg(target_os = "macos")]
             native::status_configure,
-            #[cfg(any(target_os = "macos", target_os = "linux"))]
+            #[cfg(target_os = "macos")]
             native::privacy_state,
+            #[cfg(target_os = "linux")]
+            linux::status::status_configure,
+            #[cfg(target_os = "linux")]
+            linux::status::privacy_state,
+            #[cfg(target_os = "linux")]
+            linux::status::status_seed,
             translate::translate_status,
             translate::translate_download,
             translate::translate_remove,

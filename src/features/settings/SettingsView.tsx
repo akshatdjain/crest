@@ -848,14 +848,17 @@ function Display() {
       <Row label={t("Hinweis bei Kontingent 70 und 90 %")} hint={t("Braucht den Teil AI-Nutzung")}>
         <Switch label={t("Hinweis bei Kontingent 70 und 90 %")} checked={s.closed.quotaAlerts} onChange={(quotaAlerts) => updateSettings((cur) => ({ closed: { ...cur.closed, quotaAlerts } }))} />
       </Row>
-      {/* The download watcher and the status events (power, network, Bluetooth, volume, brightness, lock keys) have no Mac backend. */}
+      {/* The download watcher is Windows' only. */}
       {!noWinApis && (
-        <>
           <Row label={t("Hinweis bei fertigem Download")} hint={t("Mit Im Ordner zeigen und Zur Ablage, nicht in den Ruhezeiten")}>
             <Switch label={t("Hinweis bei fertigem Download")} checked={s.closed.downloadAlerts} onChange={(downloadAlerts) => updateSettings((cur) => ({ closed: { ...cur.closed, downloadAlerts } }))} />
           </Row>
+      )}
+      {/* The status events (power, network, Bluetooth, volume, brightness, lock keys) have no Mac backend; hiding Windows' own flyout is Windows' only. */}
+      {!isMac && (
+        <>
           <Row label={t("Statusmeldungen")} />
-          {statusAlerts.map(([k, label, hint]) => (
+          {statusAlerts.filter(([k]) => !(isLinux && k === "hideOsd")).map(([k, label, hint]) => (
             <Row key={k} label={t(label)} hint={t(hint)}>
               <Switch label={t(label)} checked={s.closed.statusAlerts[k]} onChange={(v) => updateSettings((cur) => ({ closed: { ...cur.closed, statusAlerts: { ...cur.closed.statusAlerts, [k]: v } } }))} />
             </Row>
@@ -890,7 +893,7 @@ function Display() {
         </>
       )}
       {/* macOS shows its own recording dots, and Crest cannot read the state there. */}
-      {!noWinApis && (
+      {!isMac && (
         <Row label={t("Aufnahme-Punkte")} hint={t("Grün: Mikrofon/Kamera aktiv · Rot: Bildschirm wird aufgenommen")}>
           <Switch label={t("Aufnahme-Punkte")} checked={s.privacyDots} onChange={(privacyDots) => updateSettings({ privacyDots })} />
         </Row>

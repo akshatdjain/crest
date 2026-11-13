@@ -43,7 +43,12 @@ fn read() -> Result<u64, String> {
     }
 }
 
-#[cfg(not(any(windows, target_os = "macos")))]
+#[cfg(target_os = "linux")]
+fn read() -> Result<u64, String> {
+    crate::linux::idle::read()
+}
+
+#[cfg(not(any(windows, target_os = "macos", target_os = "linux")))]
 fn read() -> Result<u64, String> {
     Err("unsupported".into())
 }

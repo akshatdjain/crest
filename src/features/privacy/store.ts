@@ -1,5 +1,5 @@
 import { createStore } from "../../lib/store";
-import { noWinApis } from "../../platform/native";
+import { isMac } from "../../platform/native";
 import { fetchPrivacy, type PrivacyState } from "../../platform/services";
 import { settings, updateSettings } from "../../settings/store";
 
@@ -18,7 +18,7 @@ let poll: number | undefined;
 
 function syncPolling() {
   const s = settings.get();
-  const needed = !noWinApis && (s.privacyDots || s.presentation.auto);
+  const needed = !isMac && (s.privacyDots || s.presentation.auto);
   if (needed && poll === undefined) {
     const load = () =>
       void fetchPrivacy().then((next) => {

@@ -160,11 +160,11 @@ struct Track {
 }
 
 /// A number as any of the integer or float types a player may send it in.
-fn number(v: &OwnedValue) -> Option<f64> {
+pub(super) fn number(v: &OwnedValue) -> Option<f64> {
     i64::try_from(v).map(|n| n as f64).or_else(|_| u64::try_from(v).map(|n| n as f64)).or_else(|_| i32::try_from(v).map(f64::from)).or_else(|_| f64::try_from(v)).ok()
 }
 
-fn text(v: &OwnedValue) -> Option<String> {
+pub(super) fn text(v: &OwnedValue) -> Option<String> {
     String::try_from(v.try_clone().ok()?).ok()
 }
 

@@ -5,10 +5,12 @@
 pub mod audio;
 pub mod clipboard;
 pub mod controls;
+pub mod idle;
 pub mod input;
 pub mod media;
 pub mod mixer;
 pub mod quick;
+pub mod status;
 pub mod secrets;
 #[path = "../macos/mirror.rs"]
 pub mod mirror;
@@ -100,14 +102,6 @@ pub fn pasteboard_is_private() -> bool {
 /// Commands the shared interface sends or polls (memory.rs, sysevents.rs, privacy.rs on Windows): answered so the log stays clean.
 #[tauri::command]
 pub fn memory_low() {}
-
-#[tauri::command]
-pub fn status_configure() {}
-
-#[tauri::command]
-pub fn privacy_state() -> serde_json::Value {
-    serde_json::json!({ "mic": false, "camera": false, "screen": false })
-}
 
 #[tauri::command]
 pub fn glass_live_supported() -> serde_json::Value {

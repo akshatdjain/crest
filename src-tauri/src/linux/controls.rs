@@ -6,12 +6,26 @@
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::Mutex;
 use std::time::Duration;
 
 use serde::Serialize;
 use serde_json::Value;
 use zbus::blocking::{Connection, Proxy};
+
+/// When Crest itself last changed the volume or the brightness (milliseconds since 1970), so the status watcher does not announce
+/// what the user just did with Crest's own slider.
+static OWN_CHANGE: AtomicU64 = AtomicU64::new(0);
+
+fn mark_own_change() {
+    OWN_CHANGE.store(crate::now_ms(), Ordering::Relaxed);
+}
+
+/// Whether Crest changed the volume or the brightness in the last 2.5 s.
+pub(super) fn own_change_recent() -> bool {
+    crate::now_ms().saturating_sub(OWN_CHANGE.load(Ordering::Relaxed)) < 2500
+}
 
 /// Runs a program and returns what it printed; a program that is missing or fails is an error.
 pub(super) fn run(program: &str, args: &[&str]) -> Result<String, String> {
@@ -42,6 +56,11 @@ fn read_volume() -> Result<Volume, String> {
     parse_volume(&run("wpctl", &["get-volume", "@DEFAULT_AUDIO_SINK@"])?).ok_or_else(|| "unreadable".to_string())
 }
 
+/// The volume as the status notices show it: percent, and whether it is muted.
+pub(super) fn volume_percent() -> Option<(u8, bool)> {
+    read_volume().ok().map(|v| ((v.level * 100.0).round() as u8, v.muted))
+}
+
 #[tauri::command]
 pub async fn volume_get() -> Result<Volume, String> {
     tauri::async_runtime::spawn_blocking(read_volume).await.map_err(|e| e.to_string())?
@@ -50,6 +69,7 @@ pub async fn volume_get() -> Result<Volume, String> {
 /// Sets the level (0..1) and/or the mute. Raising the level of a muted output unmutes it, as on Windows.
 #[tauri::command]
 pub async fn volume_set(level: Option<f32>, muted: Option<bool>) -> Result<Volume, String> {
+    mark_own_change();
     tauri::async_runtime::spawn_blocking(move || {
         if let Some(l) = level {
             run("wpctl", &["set-volume", "@DEFAULT_AUDIO_SINK@", &format!("{:.3}", l.clamp(0.0, 1.0))])?;
@@ -166,6 +186,7 @@ fn raw_brightness(percent: u8, max: u64) -> u32 {
 /// Sets the backlight through logind, which lets a logged-in user do it without root.
 #[tauri::command]
 pub fn brightness_set(percent: u8) -> Result<(), String> {
+    mark_own_change();
     let (name, dir) = backlight().ok_or("unsupported")?;
     let max = number(dir.join("max_brightness")).ok_or("unsupported")?;
     let conn = Connection::system().map_err(|_| "unsupported".to_string())?;
