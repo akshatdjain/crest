@@ -8,6 +8,8 @@ use gtk::gdk;
 
 static CHANGES: AtomicU32 = AtomicU32::new(1);
 static PRIVATE: AtomicBool = AtomicBool::new(false);
+/// The next change is Crest putting something private there (a one-time code): the history leaves it out.
+static PRIVATE_NEXT: AtomicBool = AtomicBool::new(false);
 
 /// What password managers add to what they copy, so it stays out of the history (KeePassXC, Bitwarden, KDE's Klipper convention).
 const PRIVATE_TARGETS: [&str; 2] = ["x-kde-passwordManagerHint", "org.nspasteboard.ConcealedType"];
@@ -17,7 +19,8 @@ pub fn install() {
     // gtk-rs doesn't wrap this signal, so it is connected by name.
     gtk::Clipboard::get(&gdk::SELECTION_CLIPBOARD).connect_local("owner-change", false, |values| {
         // Read here, while the owner is the one that just copied: a later owner may not offer the same formats.
-        let private = values[0].get::<gtk::Clipboard>().ok().and_then(|clipboard| clipboard.wait_for_targets()).is_some_and(|targets| targets.iter().any(|t| PRIVATE_TARGETS.contains(&t.name().as_str())));
+        let marked = values[0].get::<gtk::Clipboard>().ok().and_then(|clipboard| clipboard.wait_for_targets()).is_some_and(|targets| targets.iter().any(|t| PRIVATE_TARGETS.contains(&t.name().as_str())));
+        let private = PRIVATE_NEXT.swap(false, Ordering::Relaxed) || marked;
         PRIVATE.store(private, Ordering::Relaxed);
         CHANGES.fetch_add(1, Ordering::Relaxed);
         None
@@ -30,4 +33,13 @@ pub fn change_count() -> u32 {
 
 pub fn is_private() -> bool {
     PRIVATE.load(Ordering::Relaxed)
+}
+
+/// Puts `text` on the clipboard and keeps it out of the history.
+pub fn copy_private(text: &str) -> Result<(), String> {
+    PRIVATE_NEXT.store(true, Ordering::Relaxed);
+    arboard::Clipboard::new().and_then(|mut c| c.set_text(text)).map_err(|e| {
+        PRIVATE_NEXT.store(false, Ordering::Relaxed);
+        e.to_string()
+    })
 }

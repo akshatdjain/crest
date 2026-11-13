@@ -224,7 +224,7 @@ pub fn run() {
         // Updates: signed installers from GitHub, only on click in the settings.
         .plugin(tauri_plugin_updater::Builder::new().build());
     #[cfg(target_os = "linux")]
-    let builder = builder.manage(linux::system::SystemState::default());
+    let builder = builder.manage(linux::system::SystemState::default()).manage(linux::notices::NoticesState::default());
     #[cfg(windows)]
     let builder = builder
         .manage(mixer::MixerState::default())
@@ -374,6 +374,20 @@ pub fn run() {
             linux::system::system_stats,
             #[cfg(target_os = "linux")]
             linux::system::system_icon,
+            #[cfg(target_os = "linux")]
+            linux::notices::notices_configure,
+            #[cfg(target_os = "linux")]
+            linux::notices::notices_status,
+            #[cfg(target_os = "linux")]
+            linux::notices::notices_request_access,
+            #[cfg(target_os = "linux")]
+            linux::notices::notices_remove_windows,
+            #[cfg(target_os = "linux")]
+            linux::notices::notices_open_app,
+            #[cfg(target_os = "linux")]
+            linux::notices::notices_answer,
+            #[cfg(target_os = "linux")]
+            linux::notices::notices_copy_code,
             tray_texts,
             #[cfg(windows)]
             controls::focus_get,

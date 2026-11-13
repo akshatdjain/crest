@@ -81,7 +81,7 @@ import { isLinux, noWinApis } from "../platform/native";
 const WINDOWS_ONLY = new Set(["shelf", "system", "discord", "vault", "terminal", "launcher", "notices", "capture", "recorder", "camera"]);
 
 /** Of those, the ones that have a Linux version (src-tauri/src/linux/): Linux lists them. */
-const LINUX_TOOLS = new Set(["system"]);
+const LINUX_TOOLS = new Set(["system", "notices"]);
 
 /**
  * Registry of all tools in the open notch. New tool = new entry here

@@ -117,7 +117,7 @@ const allPages: { id: PageId; label: string; icon: Icon; hue: Hue }[] = [
 ];
 // Plugin pages are served over http://crestplugin.localhost, which only works on Windows, and live notices have no Mac
 // version (the tool is in WINDOWS_ONLY, src/notch/tabs.ts).
-const pages = allPages.filter((p) => !(noWinApis && (p.id === "plugins" || p.id === "notices")));
+const pages = allPages.filter((p) => !(noWinApis && p.id === "plugins") && !(isMac && p.id === "notices"));
 
 /** Deep links from other tools (`navigate("settings", "<section>")`) → page holding that section. */
 const sectionPage: Record<string, PageId> = {

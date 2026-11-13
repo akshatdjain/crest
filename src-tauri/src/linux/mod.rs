@@ -9,6 +9,7 @@ pub mod idle;
 pub mod input;
 pub mod media;
 pub mod mixer;
+pub mod notices;
 pub mod quick;
 pub mod status;
 pub mod system;

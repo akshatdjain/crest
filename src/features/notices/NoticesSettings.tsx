@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { settings, updateSettings } from "../../settings/store";
 import { Button, Group, Row, Segmented, Select, Switch, TextField } from "../../ui/controls";
 import { t } from "../../i18n";
+import { isLinux } from "../../platform/native";
 import { update } from "../../lib/update";
 import { noticeSounds } from "../../lib/sound";
 import { minutes, ruleFor, type NoticeRule, type NoticeSettings, type NoticeSoundSetting } from "./rules";
@@ -11,6 +12,13 @@ const modeText: Record<string, string> = {
   "event-log": "Aktiv · liest jede neue Mitteilung, sobald Windows sie meldet",
   polling: "Aktiv · prüft alle 5 s (Ereignisprotokoll nicht verfügbar)",
   failed: "Windows liefert keine Mitteilungen",
+  off: "Aus",
+};
+
+/** On Linux the source is the desktop's notifications, and there is nothing of Windows' to say about it. */
+const linuxModeText: Record<string, string> = {
+  "event-log": "Aktiv · liest jede neue Mitteilung, sobald der Desktop sie meldet",
+  failed: "Der Desktop liefert keine Mitteilungen",
   off: "Aus",
 };
 
@@ -38,7 +46,7 @@ export function NoticesSettings() {
     : status.access === "unspecified" ? t("Windows muss den Zugriff einmal erlauben")
     : status.access === "denied" ? t("In Windows abgelehnt: Einstellungen › Datenschutz und Sicherheit › Benachrichtigungen")
     : status.access === "unavailable" ? t("Auf diesem Windows nicht verfügbar")
-    : n.enabled && n.windows ? t(modeText[status.mode] ?? status.mode)
+    : n.enabled && n.windows ? t((isLinux ? linuxModeText : modeText)[status.mode] ?? status.mode)
     : t("Liest Titel und Text der Mitteilungen anderer Apps, entfernt sie nur, wenn du sie in Crest löschst");
 
   return (
@@ -49,14 +57,14 @@ export function NoticesSettings() {
         </Row>
         {n.enabled && (
           <>
-            <Row label={t("Windows-Mitteilungen")} hint={windowsHint}>
+            <Row label={t(isLinux ? "Desktop-Mitteilungen" : "Windows-Mitteilungen")} hint={windowsHint}>
               <div className="flex items-center gap-2">
                 {status.access === "unspecified" && n.windows && <Button onClick={() => void requestAccess()}>{t("Zugriff erlauben")}</Button>}
-                <Switch label={t("Windows-Mitteilungen")} checked={n.windows} onChange={(windows) => patch(() => ({ windows }))} />
+                <Switch label={t(isLinux ? "Desktop-Mitteilungen" : "Windows-Mitteilungen")} checked={n.windows} onChange={(windows) => patch(() => ({ windows }))} />
               </div>
             </Row>
             {/* The Store build cannot change Windows' settings (banners.rs). */}
-            {n.windows && !store && (
+            {n.windows && !store && !isLinux && (
               <Row label={t("Windows-Banner ausblenden")} hint={t("Mitteilungen erscheinen nur in Crest und bleiben in der Mitteilungszentrale von Windows")}>
                 <Switch label={t("Windows-Banner ausblenden")} checked={n.hideBanners} onChange={(hideBanners) => patch(() => ({ hideBanners }))} />
               </Row>
@@ -65,7 +73,9 @@ export function NoticesSettings() {
             <Row
               label={t("Ton")}
               hint={
-                store
+                isLinux
+                  ? t("Spielt, wenn eine Mitteilung in der Notch erscheint.")
+                  : store
                   ? t("Spielt, wenn eine Mitteilung in der Notch erscheint. Den Windows-Ton schaltest du in den Windows-Einstellungen unter Benachrichtigungen aus.")
                   : t("Spielt, wenn eine Mitteilung in der Notch erscheint. Für diese Apps bleibt der Windows-Ton aus, solange Crest läuft.")
               }
@@ -84,7 +94,8 @@ export function NoticesSettings() {
                   options={[
                     { value: "off", label: t("Aus") },
                     ...noticeSounds.map((s) => ({ value: s.value, label: t(s.label) })),
-                    { value: "file", label: t("Eigene Datei") },
+                    // The picker for it is Windows' (notice_sound.rs).
+                    ...(isLinux ? [] : [{ value: "file" as const, label: t("Eigene Datei") }]),
                   ]}
                 />
               </div>
@@ -103,14 +114,15 @@ export function NoticesSettings() {
                 <Button onClick={() => void pickSoundFile()}>{t("Datei wählen …")}</Button>
               </Row>
             )}
-            <Row label="crest-notify" hint={
+            {/* crest-notify is Windows' only. */}
+            {!isLinux && <Row label="crest-notify" hint={
                 !n.cli ? t("Für Skripte und Agent-Hooks")
                 : status.pipe ? t("Bereit · für Skripte und Agent-Hooks")
                 : status.pipeFailed ? t("Kanal konnte nicht geöffnet werden · belegt ein anderes Programm den Namen?")
                 : t("Startet …")
               }>
               <Switch label="crest-notify" checked={n.cli} onChange={(cli) => patch(() => ({ cli }))} />
-            </Row>
+            </Row>}
             <Row label={t("Kopier-Knopf für Einmalcodes")} hint={t("Erscheint, wenn eine Mitteilung einen Code enthält. Die Kopie bleibt aus dem Verlauf der Zwischenablage und wird nach 30 s geleert.")}>
               <Switch label={t("Kopier-Knopf für Einmalcodes")} checked={n.copyCodes} onChange={(copyCodes) => patch(() => ({ copyCodes }))} />
             </Row>
