@@ -687,14 +687,12 @@ function Header({ title }: { title: string }) {
 }
 
 /**
- * Tool bar at the bottom (like OmniNotch). The gear at the end toggles between settings and the last tool. A drop under the pointed or
+ * Tool bar at the bottom (like OmniNotch). The gear at the end opens settings like any tool, also when they are open (#49). A drop under the pointed or
  * the current tool moves the same way with the glass and without (glass/bar.ts). Over the glass (`liquid`) the shader draws the bar as a
  * capsule of glass and the drop on it, and the Dock's own fills step aside.
  * `fades`: the glass is on, so the fills fade with it; without it they follow the theme's crossfade, as before the glass.
  */
 function Dock({ tabs, activeId, liquid, fades }: { tabs: NotchTab[]; activeId: string; liquid: boolean; fades: boolean }) {
-  const lastTool = useRef(tabs[0]?.id);
-  if (!pageTabs.some((p) => p.id === activeId)) lastTool.current = activeId;
   const inSettings = activeId === settingsTab.id;
   const updateReady = update.use().phase === "available";
   // Dot on the gear = update ready or unseen changes → jump straight to that section.
@@ -756,10 +754,7 @@ function Dock({ tabs, activeId, liquid, fades }: { tabs: NotchTab[]; activeId: s
           liquid={liquid}
           lens={pointed === settingsTab.id ? mag : 1}
           badge={badge}
-          onClick={() => {
-            if (inSettings) navigate(lastTool.current ?? tabs[0].id);
-            else navigate(settingsTab.id, badge ? "updates" : null);
-          }}
+          onClick={() => navigate(settingsTab.id, badge ? "updates" : null)}
         />
       </div>
     </div>
