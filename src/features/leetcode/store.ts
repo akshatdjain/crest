@@ -59,7 +59,6 @@ export function refreshLeetcode(force = false): Promise<void> {
 
 function wanted(): boolean {
   const s = settings.get();
-  // Note: s.closed.parts.leetcode will be added in Step 5 for the closed notch
   const closedOn = Boolean(
     (s.closed.parts as Record<string, boolean>).leetcode,
   );

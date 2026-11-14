@@ -8,7 +8,7 @@ import { content, spin } from "../../design/motion";
 import { formatAgo } from "../../lib/format";
 import { HeaderActions, HeaderButton } from "../../notch/header";
 import { navigate } from "../../notch/nav";
-import { localDate, openLeetcodeProfile } from "../../platform/services";
+import { openLeetcodeProfile, utcDate } from "../../platform/services";
 import { settings } from "../../settings/store";
 import { Button, Empty, Skeleton } from "../../ui/controls";
 import { LeetcodeLogo } from "../../ui/brands";
@@ -107,7 +107,7 @@ export function LeetcodeView() {
     );
   }
 
-  const today = localDate(new Date());
+  const today = utcDate(new Date());
   const { current, longest } = streaks(data.days, today);
   const days = (n: number) => t(n === 1 ? "{n} Tag" : "{n} Tage", { n });
 
@@ -127,7 +127,7 @@ export function LeetcodeView() {
           onClick={() => openLeetcodeProfile(data.user)}
           className="pressable -mx-1 flex min-w-0 items-center gap-1.5 self-center rounded-full px-1 hover:bg-fill-1"
         >
-          <LeetcodeLogo size={16} className="text-orange-500" />
+          <LeetcodeLogo size={16} className="text-orange" />
           <span className="truncate text-footnote font-semibold text-label">
             {data.user}
           </span>
@@ -154,7 +154,7 @@ export function LeetcodeView() {
               })
             : formatAgo(Date.now() - data.fetchedAt)}
         </span>
-        {data.ranking && (
+        {typeof data.ranking === "number" && data.ranking > 0 && (
           <span>
             {t("Rang: #{n}", { n: data.ranking.toLocaleString(locale()) })}
           </span>
@@ -171,9 +171,9 @@ function DifficultyPills({
 }) {
   return (
     <span className="flex items-center gap-1.5 text-caption font-medium">
-      <span className="text-[#00b8a3]">{solved.easy} E</span>
-      <span className="text-[#ffc01e]">{solved.medium} M</span>
-      <span className="text-[#ff375f]">{solved.hard} H</span>
+      <span className="text-green">{solved.easy} {t("E")}</span>
+      <span className="text-yellow">{solved.medium} {t("M")}</span>
+      <span className="text-red">{solved.hard} {t("H")}</span>
     </span>
   );
 }
@@ -188,7 +188,7 @@ function Stat({ label, value }: { label: string; value: string }) {
 }
 
 function dayTitle(d: Day): string {
-  const date = new Date(`${d.date}T12:00:00`).toLocaleDateString(locale(), {
+  const date = new Date(`${d.date}T12:00:00Z`).toLocaleDateString(locale(), {
     weekday: "short",
     day: "numeric",
     month: "short",
@@ -197,8 +197,8 @@ function dayTitle(d: Day): string {
     return t("Keine Einreichungen am {date}", { date });
   if (d.count === 0) return date;
   return d.count === 1
-    ? t("1 gelöst am {date}", { date })
-    : t("{n} gelöst am {date}", { n: d.count, date });
+    ? t("1 Einreichung am {date}", { date })
+    : t("{n} Einreichungen am {date}", { n: d.count, date });
 }
 
 function Heatmap({ days, today }: { days: Day[]; today: string }) {

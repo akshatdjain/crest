@@ -1719,12 +1719,14 @@
  "Klopfen": "Knock",
  "Zirpen": "Chirp",
  "Laser": "Laser",
- "1 gelöst am {date}": "1 solved on {date}",
+ "1 Einreichung am {date}": "1 submission on {date}",
  "Auf LeetCode öffnen": "Open on LeetCode",
  "Braucht deinen LeetCode-Namen": "Needs your LeetCode username",
  "Diesen LeetCode-Nutzer gibt es nicht": "This LeetCode user does not exist",
+ "E": "E",
  "Einreichungen der letzten {n} Wochen": "Submissions in the last {n} weeks",
  "Gelöst": "Solved",
+ "H": "H",
  "Kein LeetCode-Nutzer": "No LeetCode user",
  "Keine Einreichungen am {date}": "No submissions on {date}",
  "LeetCode drosselt gerade, später erneut": "LeetCode is rate limiting, try again later",
@@ -1733,7 +1735,8 @@
  "LeetCode-Einreichungen heute": "LeetCode submissions today",
  "LeetCode-Einstellungen": "LeetCode settings",
  "Liest das öffentliche Profil und Einreichungen, einmal pro Stunde": "Reads the public profile and submissions, once an hour",
+ "M": "M",
  "Rang: #{n}": "Rank: #{n}",
  "Trage deinen LeetCode-Namen ein. Gelesen wird das öffentliche Profil, ohne Anmeldung.": "Enter your LeetCode username. Only the public profile is read, without signing in.",
- "{n} gelöst am {date}": "{n} solved on {date}"
+ "{n} Einreichungen am {date}": "{n} submissions on {date}"
 }

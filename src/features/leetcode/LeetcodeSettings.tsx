@@ -31,7 +31,7 @@ export function LeetcodeSettings() {
             value={user}
             onChange={setUser}
             onSubmit={save}
-            placeholder="username"
+            placeholder={t("Nutzername")}
             width="w-40"
           />
           {clean !== saved && <Button onClick={save}>{t("Sichern")}</Button>}

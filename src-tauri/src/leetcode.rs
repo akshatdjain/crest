@@ -37,9 +37,7 @@ pub struct LeetcodeStats {
     user: String,
     ranking: Option<u64>,
     solved: Solved,
-    total: u32,
     days: Vec<Day>,
-    source: &'static str,
     fetched_at: u64,
 }
 
@@ -104,8 +102,8 @@ fn date_str(ts_secs: i64) -> String {
     }
 }
 
-pub(crate) fn parse_calendar_days(calendar_json: &str, now_ms: u64) -> (u32, Vec<Day>) {
-    let raw: HashMap<String, u32> = serde_json::from_str(calendar_json).unwrap_or_default();
+pub(crate) fn parse_calendar_days(calendar_json: &str, now_ms: u64) -> Result<Vec<Day>, String> {
+    let raw: HashMap<String, u32> = serde_json::from_str(calendar_json).map_err(|_| "parse".to_string())?;
     let mut by_date: HashMap<String, u32> = HashMap::new();
     for (sec_str, count) in raw {
         if let Ok(sec) = sec_str.parse::<i64>() {
@@ -119,13 +117,11 @@ pub(crate) fn parse_calendar_days(calendar_json: &str, now_ms: u64) -> (u32, Vec
     let now_secs = (now_ms / 1000) as i64;
     let today_ts = now_secs - (now_secs.rem_euclid(86400));
     let mut days = Vec::with_capacity(371);
-    let mut total = 0;
 
     for i in (0..371).rev() {
         let day_ts = today_ts - i * 86400;
         let date = date_str(day_ts);
         let count = by_date.get(&date).copied().unwrap_or(0);
-        total += count;
         let level = if count == 0 {
             0
         } else if count == 1 {
@@ -140,7 +136,7 @@ pub(crate) fn parse_calendar_days(calendar_json: &str, now_ms: u64) -> (u32, Vec
         days.push(Day { date, count, level });
     }
 
-    (total, days)
+    Ok(days)
 }
 
 #[derive(Deserialize)]
@@ -242,17 +238,15 @@ async fn fetch_api(client: &reqwest::Client, user: &str) -> Result<LeetcodeStats
                 }
             }
 
-            let cal_str = matched.submission_calendar.unwrap_or_else(|| "{}".into());
+            let cal_str = matched.submission_calendar.ok_or_else(|| "parse".to_string())?;
             let fetched_at = now_ms();
-            let (total, days) = parse_calendar_days(&cal_str, fetched_at);
+            let days = parse_calendar_days(&cal_str, fetched_at)?;
 
             return Ok(LeetcodeStats {
                 user: user.to_string(),
                 ranking,
                 solved,
-                total,
                 days,
-                source: "api",
                 fetched_at,
             });
         }
@@ -282,13 +276,17 @@ mod tests {
         // 1700000000 is 2023-11-14 22:13:20 UTC
         let cal = r#"{"1700000000": 3}"#;
         // Mock current time: 1700006400000 (2023-11-15 UTC)
-        let (total, days) = parse_calendar_days(cal, 1700006400 * 1000);
-        assert_eq!(total, 3);
+        let days = parse_calendar_days(cal, 1700006400 * 1000).expect("parses calendar");
         assert_eq!(days.len(), 371);
         let active_day = days.iter().find(|d| d.date == "2023-11-14");
         assert!(active_day.is_some());
         let d = active_day.unwrap();
         assert_eq!(d.count, 3);
         assert_eq!(d.level, 2);
+    }
+
+    #[test]
+    fn rejects_unparsable_calendar() {
+        assert_eq!(parse_calendar_days("invalid json", 1000).unwrap_err(), "parse");
     }
 }

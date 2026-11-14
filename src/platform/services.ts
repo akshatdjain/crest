@@ -46,6 +46,9 @@ export const secrets = {
 // Kept here for code that imports it from services (the portfolio bridge owns it).
 import { localDate } from "./portfolio";
 export { localDate };
+export function utcDate(d: Date = new Date()): string {
+  return d.toISOString().slice(0, 10);
+}
 
 // ---------- AI usage ----------
 
@@ -1769,9 +1772,7 @@ export interface LeetcodeStats {
   user: string;
   ranking: number | null;
   solved: LeetcodeSolved;
-  total: number;
   days: { date: string; count: number; level: number }[];
-  source: "api" | "demo";
   fetchedAt: number;
 }
 
@@ -1785,59 +1786,7 @@ export function openLeetcodeProfile(user: string) {
     );
 }
 
-function parseLeetcodeWebGql(user: string, data: any): LeetcodeStats {
-  const matched = data?.data?.matchedUser;
-  if (!matched) throw new Error("not-found");
-  const ranking = matched.profile?.ranking ?? null;
-  const acList: { difficulty: string; count: number }[] =
-    matched.submitStatsGlobal?.acSubmissionNum ?? [];
-  const solved = { all: 0, easy: 0, medium: 0, hard: 0 };
-  for (const item of acList) {
-    if (item.difficulty === "All") solved.all = item.count;
-    else if (item.difficulty === "Easy") solved.easy = item.count;
-    else if (item.difficulty === "Medium") solved.medium = item.count;
-    else if (item.difficulty === "Hard") solved.hard = item.count;
-  }
-  let rawCalendar: Record<string, number> = {};
-  try {
-    rawCalendar = JSON.parse(matched.submissionCalendar || "{}");
-  } catch {}
-  const byDate = new Map<string, number>();
-  for (const [secStr, count] of Object.entries(rawCalendar)) {
-    const sec = parseInt(secStr, 10);
-    if (!isNaN(sec)) {
-      const d = new Date(sec * 1000).toISOString().slice(0, 10);
-      byDate.set(d, (byDate.get(d) ?? 0) + (count as number));
-    }
-  }
-
-  const nowMs = Date.now();
-  const nowSecs = Math.floor(nowMs / 1000);
-  const todayTs = nowSecs - (((nowSecs % 86400) + 86400) % 86400);
-  const days: { date: string; count: number; level: number }[] = [];
-  let total = 0;
-  for (let i = 370; i >= 0; i--) {
-    const dayTs = todayTs - i * 86400;
-    const date = new Date(dayTs * 1000).toISOString().slice(0, 10);
-    const count = byDate.get(date) ?? 0;
-    total += count;
-    const level =
-      count === 0 ? 0 : count === 1 ? 1 : count <= 3 ? 2 : count <= 6 ? 3 : 4;
-    days.push({ date, count, level });
-  }
-
-  return {
-    user,
-    ranking,
-    solved,
-    total,
-    days,
-    source: "api",
-    fetchedAt: Date.now(),
-  };
-}
-
-export async function fetchLeetcode(
+export function fetchLeetcode(
   user: string,
   force: boolean,
 ): Promise<LeetcodeStats> {
@@ -1845,53 +1794,31 @@ export async function fetchLeetcode(
   const trimmed = user.trim();
   if (!trimmed) return Promise.reject("no-user");
 
-  try {
-    const query =
-      "query getUserProfile($username: String!) { matchedUser(username: $username) { username profile { ranking } submitStatsGlobal { acSubmissionNum { difficulty count } } submissionCalendar } }";
-    const res = await fetch("/api/leetcode", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ query, variables: { username: trimmed } }),
-    });
-    if (res.ok) {
-      const json = await res.json();
-      if (json?.data?.matchedUser) {
-        return parseLeetcodeWebGql(trimmed, json);
-      }
-      if (json?.errors?.length) {
-        const msg = json.errors[0]?.message ?? "";
-        if (msg.includes("does not exist") || msg.includes("not found")) {
-          throw new Error("not-found");
-        }
-      }
-    }
-  } catch (err: any) {
-    if (err?.message === "not-found") return Promise.reject("not-found");
-    // Fall back to sample demo data if proxy is unavailable
-  }
-
-  // Web preview mock fallback
   const today = new Date();
   const days = Array.from({ length: 371 }, (_, i) => {
     const d = new Date(today);
-    d.setDate(d.getDate() - 370 + i);
+    d.setUTCDate(d.getUTCDate() - 370 + i);
     const count = Math.max(
       0,
       Math.round(Math.sin(i * 0.5) * 3 + (i % 5 === 0 ? 2 : -1)),
     );
     return {
-      date: localDate(d),
+      date: d.toISOString().slice(0, 10),
       count,
       level: count === 0 ? 0 : Math.min(4, count),
     };
   });
-  return {
-    user: trimmed,
-    ranking: 142050,
-    solved: { all: 412, easy: 180, medium: 192, hard: 40 },
-    total: days.reduce((s, d) => s + d.count, 0),
-    days,
-    source: "demo",
-    fetchedAt: Date.now(),
-  };
+  return new Promise((r) =>
+    setTimeout(
+      () =>
+        r({
+          user: trimmed,
+          ranking: 142050,
+          solved: { all: 412, easy: 180, medium: 192, hard: 40 },
+          days,
+          fetchedAt: Date.now(),
+        }),
+      300,
+    ),
+  );
 }

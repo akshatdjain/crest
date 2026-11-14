@@ -1,20 +1,20 @@
 import { useEffect, useState } from "react";
 import { shade, todayCount } from "../../../features/leetcode/submissions";
 import { leetcode } from "../../../features/leetcode/store";
-import { localDate } from "../../../platform/services";
+import { utcDate } from "../../../platform/services";
 import { measureText } from "../measure";
 import { t } from "../../../i18n";
 
 /** Today's count and shade once the calendar has loaded (the LeetCode store polls while the part is on screen). */
 export function useLeetcodeToday(): { count: number; level: number } | null {
   const { data } = leetcode.use();
-  const [today, setToday] = useState(() => localDate(new Date()));
-  // The poll is hourly and the row stays up: moves on at local midnight, not an hour later.
+  const [today, setToday] = useState(() => utcDate(new Date()));
+  // The poll is hourly and the row stays up: moves on at UTC midnight (matching LeetCode's day rollover).
   useEffect(() => {
     const next = new Date();
-    next.setHours(24, 0, 1, 0);
+    next.setUTCHours(24, 0, 1, 0);
     const id = window.setTimeout(
-      () => setToday(localDate(new Date())),
+      () => setToday(utcDate(new Date())),
       next.getTime() - Date.now(),
     );
     return () => window.clearTimeout(id);

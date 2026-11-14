@@ -102,7 +102,7 @@ export function startDemo() {
     ask: { provider: "anthropic", configs: { ...s.ask.configs, anthropic: { model: "claude-opus-5-5", effort: "high", baseUrl: "" } } },
     usage: { ...s.usage, cursor: true },
     github: { user: "andrealo20" },
-    leetcode: { user: "sandiskisback" },
+    leetcode: { user: "coder" },
     privacyDots: true,
     // Every tool in its own colour, the way the website shows them, and the timer in its pixel look.
     themes: { ...s.themes, iconColors: true },
