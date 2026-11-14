@@ -584,9 +584,7 @@ export function Notch() {
                 {/* The Music tool's cover behind the whole panel; while it shows, the panel takes the Dark theme's light text. On a dark
                     theme it stays over the glass, see-through so the glass shows; on a light theme the glass turns off (blocks above). */}
                 <CoverBackdrop glass={glass === "shown"} />
-                {/* Over the glass a hanging panel's header sits on the closed notch's colour (the brow, shader.ts), so it takes the closed
-                    notch's ink; a floating capsule's has no brow and keeps the theme's. */}
-                <Header title={t(tab.label)} ink={glass === "shown" && bridged ? closedInk : undefined} fade={glass !== "off" && !reduced} />
+                <Header title={t(tab.label)} />
                 <div className="relative min-h-0 flex-1 overflow-clip">
                   <AnimatePresence mode="popLayout" initial={false}>
                     <motion.div
@@ -633,8 +631,6 @@ const GLASS_STATUS = { "--color-orange": "var(--glass-orange)", "--color-red": "
 const GLASS_STATUS_FADE = "--color-orange 300ms var(--ease-out), --color-red 300ms var(--ease-out), --color-green 300ms var(--ease-out), --color-caution 300ms var(--ease-out)";
 /** The closed row's ink over the closed glass changes with --shape's fade, like the open panel's status colours. */
 const CLOSED_INK_FADE = `${GLASS_STATUS_FADE}, --color-yellow 300ms var(--ease-out), --color-link 300ms var(--ease-out), --accent 300ms var(--ease-out)`;
-/** The header's ink changes with the brow under it as the glass comes and goes; the accent keeps global.css's fade. */
-const INK_FADE = "--color-label 300ms var(--ease-out), --color-label-2 300ms var(--ease-out), --color-label-3 300ms var(--ease-out), --accent 500ms ease";
 /** The Dock's fills step aside for the glass and come back with --shape's fade. */
 const FILL_FADE = "transition-colors duration-300 ease-out motion-reduce:transition-none";
 
@@ -655,16 +651,16 @@ function LineProgress({ along }: { along: "x" | "y" }) {
   );
 }
 
-/** Header: tool title on the left, actions + pin on the right. The middle (camera) stays free. `fade`: the glass is on, see INK_FADE. */
-function Header({ title, ink, fade }: { title: string; ink?: Record<string, string>; fade: boolean }) {
+/** Header: tool title on the left, actions + pin on the right. The middle (camera) stays free. */
+function Header({ title }: { title: string }) {
   const isPinned = pinned.use();
   return (
     // Empty header space = drag handle; the hit zone around it starts the drag (one handler, or two drags would run).
-    // The title's colour is body's, worked out from the theme's label: set again here so the ink (the brow's, the cover's) reaches it.
+    // The title's colour is body's, worked out from the theme's label: set again here so the cover's ink reaches it.
     <div
       data-drag-handle
       className="flex shrink-0 items-center justify-between gap-3 ps-5 pe-3"
-      style={{ height: HEADER_HEIGHT + 4, color: "var(--color-label)", ...ink, ...(fade && { transition: INK_FADE }) }}
+      style={{ height: HEADER_HEIGHT + 4, color: "var(--color-label)" }}
     >
       <div className="relative min-w-0 flex-1">
         <AnimatePresence mode="popLayout" initial={false}>
