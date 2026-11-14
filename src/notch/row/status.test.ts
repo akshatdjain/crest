@@ -118,11 +118,14 @@ test("level: brightness and out of range readings", () => {
 });
 test("osd: hidden only while the HUD replaces both and can show", () => {
   const on = { volume: true, brightness: true, hideOsd: true };
-  assert.equal(osdHidden(on, false), true);
-  assert.equal(osdHidden({ ...on, hideOsd: false }, false), false);
-  assert.equal(osdHidden({ ...on, brightness: false }, false), false);
-  assert.equal(osdHidden({ ...on, volume: false }, false), false);
-  assert.equal(osdHidden(on, true), false);
+  const shown = { fullscreen: false, hidden: false };
+  assert.equal(osdHidden(on, shown), true);
+  assert.equal(osdHidden({ ...on, hideOsd: false }, shown), false);
+  assert.equal(osdHidden({ ...on, brightness: false }, shown), false);
+  assert.equal(osdHidden({ ...on, volume: false }, shown), false);
+  assert.equal(osdHidden(on, { ...shown, fullscreen: true }), false);
+  // Hidden by a window rule or the hide shortcut, Crest shows no HUD, so Windows' own indicator comes back (#50).
+  assert.equal(osdHidden(on, { ...shown, hidden: true }), false);
   // A fullscreen app only pauses it: the option stays in force, so the process that restores the indicator stays too.
   assert.equal(osdArmed(on), true);
   assert.equal(osdArmed({ ...on, volume: false }), false);

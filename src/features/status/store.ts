@@ -1,7 +1,8 @@
 import { createStore } from "../../lib/store";
-import { status, type StatusSeed } from "../../platform/services";
+import { status, windowShell, type StatusSeed } from "../../platform/services";
 import { settings } from "../../settings/store";
 import { fullscreen } from "../system/gaming";
+import { screen } from "../window/store";
 import { presentingNow } from "../privacy/store";
 import { t } from "../../i18n";
 import { STATUS, btAlert, levelAlert, lockAlert, micAlert, netAlert, osdArmed, osdHidden, powerAlert, mergeSeed, type LowBattery, type PowerState, type StatusAlert } from "../../notch/row/status";
@@ -67,18 +68,25 @@ export function startStatusWatch() {
   void status.seed().then(seed, () => {});
   // Tells Rust what to read and whether to hide the Windows indicator; sent again only when that changes.
   let sent = "";
+  // Hidden by the hide shortcut; a window rule's hiding comes as `screen`.
+  let windowHidden = false;
   const configure = () => {
     const alerts = settings.get().closed.statusAlerts;
     const quiet = fullscreen.get();
     // Alerts are dropped while quiet, so the key poll rests too; Bluetooth and volume run while their own alerts are on.
     // Off, the watcher forgets the devices; the next scan is a new baseline, so the ones remembered here would hide a reconnect.
     if (!alerts.bt) devices.clear();
-    const c = { ddc: alerts.brightness, locks: alerts.lock && !quiet, insert: alerts.insert && !quiet, bt: alerts.bt, volume: alerts.volume, hideOsd: osdHidden(alerts, fullscreen.get()), osdArmed: osdArmed(alerts) };
+    const c = { ddc: alerts.brightness, locks: alerts.lock && !quiet, insert: alerts.insert && !quiet, bt: alerts.bt, volume: alerts.volume, hideOsd: osdHidden(alerts, { fullscreen: fullscreen.get(), hidden: screen.get() === "hide" || windowHidden }), osdArmed: osdArmed(alerts) };
     if (JSON.stringify(c) === sent) return;
     sent = JSON.stringify(c);
     status.configure(c);
   };
   settings.subscribe(configure);
   fullscreen.subscribe(configure);
+  screen.subscribe(configure);
+  windowShell.onHidden((hidden) => {
+    windowHidden = hidden;
+    configure();
+  });
   configure();
 }

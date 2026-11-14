@@ -111,7 +111,10 @@ type OsdAlerts = { volume: boolean; brightness: boolean; hideOsd: boolean };
 /** Whether the option to hide the Windows indicator is in force: Crest's HUD stands in for both volume and brightness (Windows draws them in one flyout). */
 export const osdArmed = (alerts: OsdAlerts): boolean => alerts.hideOsd && alerts.volume && alerts.brightness;
 
-/** Whether the Windows indicator is hidden now: the option is in force and Crest's HUD can show, so not over a fullscreen app, where status alerts are dropped. */
-export function osdHidden(alerts: OsdAlerts, fullscreen: boolean): boolean {
-  return osdArmed(alerts) && !fullscreen;
+/**
+ * Whether the Windows indicator is hidden now: the option is in force and Crest's HUD can show, so not over a fullscreen app, where
+ * status alerts are dropped, and not while a window rule or the hide shortcut hides Crest, which would leave no indicator at all (#50).
+ */
+export function osdHidden(alerts: OsdAlerts, now: { fullscreen: boolean; hidden: boolean }): boolean {
+  return osdArmed(alerts) && !now.fullscreen && !now.hidden;
 }
