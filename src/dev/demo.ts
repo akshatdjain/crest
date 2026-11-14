@@ -69,7 +69,7 @@ const params = new URLSearchParams(location.search);
 /** The dock, in an order that shows the best first. Every tool is on, the Windows-only ones included. */
 const DEMO_TOOLS = [
   "overview", "media", "timer", "todos", "notes", "clipboard", "shelf", "ask", "convert", "weather", "usage", "trading", "system",
-  "calendar", "github", "discord", "notices", "capture", "recorder", "camera", "launcher", "vault", "terminal", "water", "scratchpad",
+  "calendar", "github", "leetcode", "discord", "notices", "capture", "recorder", "camera", "launcher", "vault", "terminal", "water", "scratchpad",
 ];
 
 /** A finger has no hover: the notch opens on a tap, and an open one stays until a tap outside. */
@@ -102,6 +102,7 @@ export function startDemo() {
     ask: { provider: "anthropic", configs: { ...s.ask.configs, anthropic: { model: "claude-opus-5-5", effort: "high", baseUrl: "" } } },
     usage: { ...s.usage, cursor: true },
     github: { user: "andrealo20" },
+    leetcode: { user: "sandiskisback" },
     privacyDots: true,
     // Every tool in its own colour, the way the website shows them, and the timer in its pixel look.
     themes: { ...s.themes, iconColors: true },

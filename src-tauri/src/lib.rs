@@ -31,6 +31,7 @@ mod drop;
 #[cfg(windows)]
 mod fps;
 mod github;
+mod leetcode;
 mod hit_test;
 mod idle;
 #[cfg(windows)]
@@ -238,6 +239,7 @@ pub fn run() {
         .manage(usage::UsageState::default())
         .manage(display::DisplayState::default())
         .manage(github::GithubState::default())
+        .manage(leetcode::LeetcodeState::default())
         .manage(calendar::CalendarState::default())
         .manage(plugins::PluginsState::default())
         // Plugin pages, each only from its own folder (plugins.rs).
@@ -466,6 +468,8 @@ pub fn run() {
             launcher::launcher_shortcuts,
             github::github_contributions,
             github::github_open_profile,
+            leetcode::leetcode_stats,
+            leetcode::leetcode_open_profile,
             calendar::calendar_fetch,
             calendar::calendar_open_link,
             lyrics::lyrics_fetch,

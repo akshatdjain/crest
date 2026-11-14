@@ -1718,5 +1718,22 @@
  "Ballon": "風船",
  "Klopfen": "コンコン",
  "Zirpen": "さえずり",
- "Laser": "レーザー"
+ "Laser": "レーザー",
+ "1 gelöst am {date}": "1 solved on {date}",
+ "Auf LeetCode öffnen": "Open on LeetCode",
+ "Braucht deinen LeetCode-Namen": "Needs your LeetCode username",
+ "Diesen LeetCode-Nutzer gibt es nicht": "This LeetCode user does not exist",
+ "Einreichungen der letzten {n} Wochen": "Submissions in the last {n} weeks",
+ "Gelöst": "Solved",
+ "Kein LeetCode-Nutzer": "No LeetCode user",
+ "Keine Einreichungen am {date}": "No submissions on {date}",
+ "LeetCode drosselt gerade, später erneut": "LeetCode is rate limiting, try again later",
+ "LeetCode heute": "LeetCode today",
+ "LeetCode-Antwort nicht lesbar": "Cannot read the LeetCode response",
+ "LeetCode-Einreichungen heute": "LeetCode submissions today",
+ "LeetCode-Einstellungen": "LeetCode settings",
+ "Liest das öffentliche Profil und Einreichungen, einmal pro Stunde": "Reads the public profile and submissions, once an hour",
+ "Rang: #{n}": "Rank: #{n}",
+ "Trage deinen LeetCode-Namen ein. Gelesen wird das öffentliche Profil, ohne Anmeldung.": "Enter your LeetCode username. Only the public profile is read, without signing in.",
+ "{n} gelöst am {date}": "{n} solved on {date}"
 }
