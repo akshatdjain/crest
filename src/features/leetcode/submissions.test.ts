@@ -5,7 +5,7 @@ import {
   todayCount,
   type Day,
   type DifficultyCounts,
-} from "./submissions";
+} from "./submissions.ts";
 
 test("shade steps with orange theme token", () => {
   assert.equal(shade(0), "var(--color-fill-2)");

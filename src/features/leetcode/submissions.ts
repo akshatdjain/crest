@@ -5,7 +5,7 @@ import {
   total,
   weekColumns,
   type Day,
-} from "../github/contributions";
+} from "../github/contributions.ts";
 
 export type { Day };
 export { streaks, todayCount, total, weekColumns };
