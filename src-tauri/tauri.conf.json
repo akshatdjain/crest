@@ -96,6 +96,10 @@
       "../licenses/": "licenses/"
     },
     "createUpdaterArtifacts": true,
+    "macOS": {
+      "signingIdentity": "-",
+      "hardenedRuntime": false
+    },
     "windows": {
       "nsis": {
         "installerIcon": "icons/icon.ico",

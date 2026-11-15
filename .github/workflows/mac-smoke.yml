@@ -30,6 +30,16 @@ jobs:
       # The .app only: no updater archive, which would need the signing key.
       - name: Build
         run: npx tauri build --bundles app --config '{"bundle":{"createUpdaterArtifacts":false}}'
+      # The bundle is signed ad hoc (tauri.conf.json): an unsealed one is "damaged" to Gatekeeper on Apple silicon (#52).
+      # spctl reads it as a download would be read, with the quarantine flag on; it still rejects an app without notarization.
+      - name: Check the signature
+        run: |
+          app=src-tauri/target/release/bundle/macos/Crest.app
+          codesign --verify --deep --strict --verbose=2 "$app"
+          codesign -dv "$app" 2>&1 | grep -E 'Identifier|Signature|Sealed Resources'
+          xattr -w com.apple.quarantine "0081;$(printf %x "$(date +%s)");Safari;" "$app"
+          spctl --assess --type execute -vv "$app" || true
+          xattr -d com.apple.quarantine "$app"
       - name: Run and capture
         run: |
           set -x
