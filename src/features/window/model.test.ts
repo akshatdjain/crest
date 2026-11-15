@@ -19,6 +19,13 @@ test("broken values fall back, valid ones stay", () => {
   assert.equal(w.closeDelay, "fast");
   assert.equal(w.wheelTools, false);
   assert.equal(w.rightClickSettings, true);
+  // Both on unless turned off (#50): the grips at the panel's edges and a hovered part picking the tool.
+  assert.equal(w.resizeEdges, true);
+  assert.equal(w.hoverParts, true);
+  const off = normalizeWindow({ resizeEdges: false, hoverParts: false });
+  assert.equal(off.resizeEdges, false);
+  assert.equal(off.hoverParts, false);
+  assert.equal(normalizeWindow({ resizeEdges: "no", hoverParts: 0 }).resizeEdges, true);
 });
 
 test("hotkeys: missing open takes the default, an empty one stays unset, invalid ones are dropped", () => {

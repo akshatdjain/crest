@@ -669,6 +669,13 @@ export function OpenRows() {
                 ]}
               />
             </Row>
+            <Row label={t("Darüberfahren öffnet das Tool des Teils")} hint={t("Aus öffnet sich die Notch wie sonst; ein Klick auf einen Teil öffnet sein Tool immer")}>
+              <Switch
+                label={t("Darüberfahren öffnet das Tool des Teils")}
+                checked={s.behavior.hoverParts}
+                onChange={(hoverParts) => updateSettings((cur) => ({ behavior: { ...cur.behavior, hoverParts } }))}
+              />
+            </Row>
           </motion.div>
         )}
       </AnimatePresence>

@@ -427,6 +427,9 @@ function Panel() {
           ]}
         />
       </Row>
+      <Row label={t("Größe an den Rändern ziehen")} hint={t("Aus ändert sich die Größe nur hier und mit dem Tastenkürzel dafür")}>
+        <Switch label={t("Größe an den Rändern ziehen")} checked={b.resizeEdges} onChange={(resizeEdges) => updateBehavior({ resizeEdges })} />
+      </Row>
       <Row label={t("Skalierung")} hint={t("Zeichnet Crest größer, wie eine höhere Windows-Skalierung nur für Crest")}>
         {/* Steps instead of a slider: the scale redraws the whole page, so a dragged thumb would move under the pointer. */}
         <div id="panel-scale" className="flex shrink-0 items-center gap-2">

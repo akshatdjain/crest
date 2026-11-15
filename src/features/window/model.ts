@@ -34,6 +34,10 @@ export interface WindowSettings {
   closeDelay: CloseDelay;
   rightClickSettings: boolean;
   wheelTools: boolean;
+  /** Grips at the open panel's edges that set each tool's size. */
+  resizeEdges: boolean;
+  /** With Open on hover, the closed-row part under the pointer picks the tool; a click on a part always does. */
+  hoverParts: boolean;
 }
 
 export const MAX_APP_RULES = 32;
@@ -51,6 +55,8 @@ export const WINDOW_DEFAULTS: WindowSettings = {
   closeDelay: "fast",
   rightClickSettings: true,
   wheelTools: true,
+  resizeEdges: true,
+  hoverParts: true,
 };
 
 const BEHAVIORS: Behavior[] = ["normal", "line", "hide"];
@@ -139,6 +145,8 @@ export function normalizeWindow(saved: unknown, legacyVisibility?: string): Wind
     closeDelay: (Object.keys(closeDelayMs) as CloseDelay[]).includes(s.closeDelay as CloseDelay) ? (s.closeDelay as CloseDelay) : d.closeDelay,
     rightClickSettings: bool(s.rightClickSettings, d.rightClickSettings),
     wheelTools: bool(s.wheelTools, d.wheelTools),
+    resizeEdges: bool(s.resizeEdges, d.resizeEdges),
+    hoverParts: bool(s.hoverParts, d.hoverParts),
   };
 }
 

@@ -138,7 +138,7 @@ export function Notch() {
   useLayoutEffect(() => {
     if (status === "open" && prevStatus.current !== "open") {
       const resumed = Date.now() - closedAt.current < RESUME_MS;
-      const hovered = Date.now() - pointed.current.at < POINTED_MS ? pointed.current.tool : null;
+      const hovered = settings.get().behavior.hoverParts && Date.now() - pointed.current.at < POINTED_MS ? pointed.current.tool : null;
       const target = trayTab.current ?? takeOpenTarget() ?? hovered;
       if (target) navigate(target);
       // A fresh install opens on the setup until it is finished or skipped.
@@ -604,7 +604,7 @@ export function Notch() {
                 <Dock tabs={visible} activeId={tab.id} liquid={glass === "shown"} fades={glass !== "off"} />
                 {/* The grips and their sizes assume a panel hanging from the top edge. */}
                 {/* The grips size the user's own size; an extra height (sizeExtra) stays on top of it. */}
-                {!overridden && edge === "top" && <ResizeHandles id={tab.id} def={tab.size} size={toolSize} />}
+                {!overridden && edge === "top" && behavior.resizeEdges && <ResizeHandles id={tab.id} def={tab.size} size={toolSize} />}
               </motion.div>
             )}
           </AnimatePresence>
