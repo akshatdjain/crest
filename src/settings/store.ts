@@ -105,6 +105,8 @@ export interface Settings {
   music: {
     lyricsOpen: boolean;
     titleLyrics: boolean;
+    /** A title too wide for its part keeps scrolling while the song plays, instead of three laps (#53). */
+    titleLoop: boolean;
     notchLyrics: boolean;
     pinned: string | null;
     lyricSources: LyricSourceSetting[];
@@ -195,6 +197,7 @@ const defaults: Settings = {
   music: {
     lyricsOpen: false,
     titleLyrics: false,
+    titleLoop: false,
     notchLyrics: false,
     pinned: null,
     lyricSources: LYRIC_SOURCE_DEFAULTS,

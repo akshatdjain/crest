@@ -126,7 +126,7 @@ export function CompactRow({ room, scale, covered, onWidth }: { room: number; sc
       const text = measureText(caption);
       parts.push({ item: { id, kind: "title", text }, draw: (p) => titleLyric
         ? <LiveLyric text={caption} textWidth={text} width={p.width} paused={hovered || covered} />
-        : <Marquee key={caption} text={caption} textWidth={text} width={p.width} paused={hovered || covered || !np?.isPlaying} /> });
+        : <Marquee key={caption} text={caption} textWidth={text} width={p.width} paused={hovered || covered || !np?.isPlaying} endless={music.titleLoop} /> });
     } else if (id === "rings" && rings.length) {
       parts.push({
         item: { id, kind: "carousel", items: rings.map(() => RING), gap: RING_GAP },

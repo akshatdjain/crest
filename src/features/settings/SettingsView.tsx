@@ -1078,6 +1078,7 @@ function ClosedParts() {
                 {on && id === "clock" && !across(dock.edge) && <SubSwitch label={t("Datum")} checked={c.clockDate} onChange={(clockDate) => setClosed(() => ({ clockDate }))} />}
                 {on && id === "clock" && <SubSwitch label={t("Sekunden")} checked={c.clockSeconds} onChange={(clockSeconds) => setClosed(() => ({ clockSeconds }))} />}
                 {on && id === "title" && <SubSwitch label={t("Songtext")} checked={music.titleLyrics} onChange={(titleLyrics) => setMusic({ titleLyrics })} />}
+                {on && id === "title" && <SubSwitch label={t("Endlos scrollen")} checked={music.titleLoop} onChange={(titleLoop) => setMusic({ titleLoop })} />}
                 <Switch label={t(label)} checked={on} onChange={(v) => setClosed((cur) => ({ parts: { ...cur.parts, [id]: v } }))} />
               </div>
             </Reorder.Item>
