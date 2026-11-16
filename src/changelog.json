@@ -1,5 +1,32 @@
 [
   {
+    "version": "1.2.2",
+    "date": "2026-11-16",
+    "items": [
+      {
+        "en": "A LeetCode tool with problems solved, streaks and recent activity, and a closed notch part with today's count"
+      },
+      {
+        "en": "Keep scrolling keeps a long song title moving while the song plays"
+      },
+      {
+        "en": "Switches to take the grips off the panel's edges and to stop a hovered part from opening its tool"
+      },
+      {
+        "en": "On Macs with Apple silicon, macOS no longer calls the app damaged"
+      },
+      {
+        "en": "A long lyric line stays at its end until the next line"
+      },
+      {
+        "en": "Windows' volume indicator shows while Crest is hidden"
+      },
+      {
+        "en": "A click on a system notification opens the Notices page instead of Documents"
+      }
+    ]
+  },
+  {
     "version": "1.2.1",
     "date": "2026-11-14",
     "items": [
