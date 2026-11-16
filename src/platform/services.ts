@@ -46,6 +46,9 @@ export const secrets = {
 // Kept here for code that imports it from services (the portfolio bridge owns it).
 import { localDate } from "./portfolio";
 export { localDate };
+export function utcDate(d: Date = new Date()): string {
+  return d.toISOString().slice(0, 10);
+}
 
 // ---------- AI usage ----------
 
@@ -1757,3 +1760,65 @@ export const capture = {
     return () => void off.then((f) => f());
   },
 };
+
+export interface LeetcodeSolved {
+  all: number;
+  easy: number;
+  medium: number;
+  hard: number;
+}
+
+export interface LeetcodeStats {
+  user: string;
+  ranking: number | null;
+  solved: LeetcodeSolved;
+  days: { date: string; count: number; level: number }[];
+  fetchedAt: number;
+}
+
+export function openLeetcodeProfile(user: string) {
+  if (isNative) invoke("leetcode_open_profile", { user }).catch(() => {});
+  else
+    window.open(
+      `https://leetcode.com/u/${encodeURIComponent(user)}`,
+      "_blank",
+      "noopener",
+    );
+}
+
+export function fetchLeetcode(
+  user: string,
+  force: boolean,
+): Promise<LeetcodeStats> {
+  if (isNative) return invoke<LeetcodeStats>("leetcode_stats", { user, force });
+  const trimmed = user.trim();
+  if (!trimmed) return Promise.reject("no-user");
+
+  const today = new Date();
+  const days = Array.from({ length: 371 }, (_, i) => {
+    const d = new Date(today);
+    d.setUTCDate(d.getUTCDate() - 370 + i);
+    const count = Math.max(
+      0,
+      Math.round(Math.sin(i * 0.5) * 3 + (i % 5 === 0 ? 2 : -1)),
+    );
+    return {
+      date: d.toISOString().slice(0, 10),
+      count,
+      level: count === 0 ? 0 : Math.min(4, count),
+    };
+  });
+  return new Promise((r) =>
+    setTimeout(
+      () =>
+        r({
+          user: trimmed,
+          ranking: 142050,
+          solved: { all: 412, easy: 180, medium: 192, hard: 40 },
+          days,
+          fetchedAt: Date.now(),
+        }),
+      300,
+    ),
+  );
+}

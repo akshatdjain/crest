@@ -29,7 +29,7 @@ import {
 } from "@phosphor-icons/react";
 import { DepotIcon } from "../ui/icons";
 import type { Hue } from "../features/themes/hues";
-import { DiscordLogo } from "../ui/brands";
+import { DiscordLogo, LeetcodeLogo } from "../ui/brands";
 import { OverviewView } from "../features/overview/OverviewView";
 import { NowPlayingView } from "../features/now-playing/NowPlayingView";
 import { TimerView } from "../features/timer/TimerView";
@@ -55,6 +55,7 @@ import { SettingsView } from "../features/settings/SettingsView";
 import { TerminalView } from "../features/terminal/TerminalView";
 import { LauncherView } from "../features/launcher/LauncherView";
 import { GithubView } from "../features/github/GithubView";
+import { LeetcodeView } from "../features/leetcode/LeetcodeView";
 import { CalendarView } from "../features/calendar/CalendarView";
 import { CaptureView } from "../features/capture/CaptureView";
 import { SetupView } from "../features/setup/SetupView";
@@ -131,6 +132,7 @@ export const tabs: NotchTab[] = ([
   { id: "terminal", hue: "slate", label: "Terminal", icon: TerminalWindow, size: { w: 720, h: 460 }, View: TerminalView },
   { id: "launcher", hue: "orange", label: "Launcher", icon: RocketLaunch, size: { w: 520, h: 210 }, View: LauncherView },
   { id: "github", hue: "violet", label: "GitHub", icon: GithubLogo, size: { w: 520, h: 236 }, View: GithubView },
+  { id: "leetcode", hue: "amber", label: "LeetCode", icon: LeetcodeLogo, size: { w: 520, h: 248 }, View: LeetcodeView },
   { id: "calendar", hue: "red", label: "Kalender", icon: CalendarBlank, size: { w: 560, h: 340 }, View: CalendarView },
   { id: "notices", hue: "amber", label: "Mitteilungen", icon: BellSimple, size: { w: 560, h: 320 }, View: NoticesView },
   { id: "capture", hue: "cyan", label: "Erfassen", icon: Camera, size: { w: 620, h: 336 }, View: CaptureView },

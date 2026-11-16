@@ -1,6 +1,6 @@
 // Settings model of the closed notch's row: which parts show and in what order. Pure, so the saved shape can be repaired (and tested) without the app around it.
 
-export const PART_IDS = ["timer", "discord", "rings", "title", "readings", "equalizer", "clock", "github", "calendar", "script", "downloads", "weather"] as const;
+export const PART_IDS = ["timer", "discord", "rings", "title", "readings", "equalizer", "clock", "github", "leetcode", "calendar", "script", "downloads", "weather"] as const;
 export type PartId = (typeof PART_IDS)[number];
 /** Readings of the closed row; net, power, battery and temp are opt-in. */
 export const READING_KEYS = ["cpu", "ram", "gpu", "net", "power", "battery", "temp"] as const;
@@ -21,7 +21,7 @@ export interface StatusAlerts { power: boolean; net: boolean; bt: boolean; volum
 
 export const CLOSED_DEFAULTS: ClosedSettings = {
   order: [...PART_IDS],
-  parts: { timer: true, discord: true, rings: true, title: false, readings: false, equalizer: true, clock: false, github: false, calendar: false, script: false, downloads: true, weather: false },
+  parts: { timer: true, discord: true, rings: true, title: false, readings: false, equalizer: true, clock: false, github: false, leetcode: false, calendar: false, script: false, downloads: true, weather: false },
   readings: { cpu: true, ram: true, gpu: true, net: false, power: false, battery: false, temp: false },
   clockSeconds: false, clockDate: false, lineProgress: true, quotaAlerts: true, downloadAlerts: true,
   statusAlerts: { power: true, net: true, bt: true, volume: true, brightness: true, lock: true, insert: false, hideOsd: false, mic: true },
@@ -86,6 +86,7 @@ export function partTool(part: string): string | null {
       return "weather";
     case "discord":
     case "github":
+    case "leetcode":
     case "calendar":
       return part;
     default:

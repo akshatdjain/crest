@@ -20,6 +20,7 @@ export const TOOL_IDS = [
   "terminal",
   "launcher",
   "github",
+  "leetcode",
   "calendar",
   "notices",
   "capture",
@@ -34,4 +35,4 @@ export const TOOL_IDS = [
 ] as const;
 
 /** The tools that start switched off on a fresh install. */
-export const DEFAULT_OFF = new Set<string>(["system", "discord", "trading", "vault", "water", "scratchpad", "terminal", "github", "calendar", "notices", "recorder", "camera", "habits", "colour", "clocks", "teleprompter", "agents", "calc"]);
+export const DEFAULT_OFF = new Set<string>(["system", "discord", "trading", "vault", "water", "scratchpad", "terminal", "github", "leetcode", "calendar", "notices", "recorder", "camera", "habits", "colour", "clocks", "teleprompter", "agents", "calc"]);

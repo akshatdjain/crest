@@ -57,8 +57,9 @@ import { BackupSettings } from "./BackupSettings";
 import { diagnosticsText } from "./diagnostics";
 import { searchSettings, type SearchEntry } from "./search";
 import { github } from "../github/store";
+import { leetcode } from "../leetcode/store";
 import { settings, updateAsk, updateSettings, type AskProvider } from "../../settings/store";
-import { DiscordLogo } from "../../ui/brands";
+import { DiscordLogo, LeetcodeLogo } from "../../ui/brands";
 import { Button, Group, Row, Segmented, Select, Slider, StyleCards, Switch, TextField } from "../../ui/controls";
 import { PET_IDS, PET_SIZE, type ClosedSettings, type PartId, type PetId } from "../../notch/row/parts";
 import { PetArt } from "../../notch/pet/Nest";
@@ -79,6 +80,7 @@ import { UsageSettings } from "../usage/UsageSettings";
 import { SystemSettings } from "../system/SystemSettings";
 import { LauncherSettings } from "../launcher/LauncherSettings";
 import { GithubSettings } from "../github/GithubSettings";
+import { LeetcodeSettings } from "../leetcode/LeetcodeSettings";
 import { CalendarSettings } from "../calendar/CalendarSettings";
 import { NoticesSettings } from "../notices/NoticesSettings";
 import { WindowSettings, keyText } from "../window/WindowSettings";
@@ -139,6 +141,7 @@ const sectionPage: Record<string, PageId> = {
   system: "tools",
   launcher: "tools",
   github: "accounts",
+  leetcode: "accounts",
   calendar: "accounts",
   notices: "notices",
   plugins: "plugins",
@@ -421,6 +424,7 @@ function PageContent({ page }: { page: PageId }) {
           {findTab("discord") && <Discord />}
           <TradingSettings />
           <GithubSettings />
+          <LeetcodeSettings />
           <CalendarSettings />
           <KeysNote />
         </>
@@ -537,6 +541,7 @@ function DiagnosticsRow() {
         errors: [
           ["update", u.phase === "error" ? "check-failed" : null],
           ["github", github.get().error],
+          ["leetcode", leetcode.get().error],
           ["fps", fps.get().error],
           ["discord", discordState.get().error],
         ],
@@ -956,6 +961,7 @@ const partInfo: Record<PartId, { label: string; icon: Icon; hue: Hue }> = {
   equalizer: { label: "Equalizer", icon: Waveform, hue: "pink" },
   clock: { label: "Uhrzeit", icon: Clock, hue: "blue" },
   github: { label: "GitHub heute", icon: GithubLogo, hue: "violet" },
+  leetcode: { label: "LeetCode heute", icon: LeetcodeLogo, hue: "amber" },
   calendar: { label: "Nächster Termin", icon: CalendarBlank, hue: "red" },
   script: { label: "Skript-Anzeigen (crest-notify)", icon: TerminalWindow, hue: "slate" },
   downloads: { label: "Downloads", icon: DownloadSimple, hue: "teal" },
@@ -1014,7 +1020,7 @@ const NO_MAC_PARTS = new Set<PartId>(["readings", "discord", "downloads"]);
 
 /** Parts of the closed row (notch and capsule share them): drag to reorder, switch on/off. Same pattern as `Tools()`. */
 function ClosedParts() {
-  const { closed: c, music, tools, notices, github, dock } = settings.use();
+  const { closed: c, music, tools, notices, github, leetcode: lcSettings, dock } = settings.use();
   const [dragging, setDragging] = useState<PartId | null>(null);
   const setClosed = (patch: (cur: ClosedSettings) => Partial<ClosedSettings>) => updateSettings((cur) => ({ closed: { ...cur.closed, ...patch(cur.closed) } }));
   // Only these always show; battery, power and temperature can be missing, so they cannot keep the part alone. The network
@@ -1028,6 +1034,7 @@ function ClosedParts() {
     calendar: !tools.some((x) => x.id === "calendar" && x.enabled) && t("Braucht das Tool Kalender"),
     script: !(notices.enabled && notices.cli) && t("Braucht Live-Mitteilungen und crest-notify"),
     github: !github.user.trim() && t("Braucht deinen GitHub-Namen"),
+    leetcode: !lcSettings.user.trim() && t("Braucht deinen LeetCode-Namen"),
   };
 
   return (

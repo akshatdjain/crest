@@ -137,6 +137,8 @@ export interface Settings {
   launcher: { favorites: Favorite[] | null; hotkeys: boolean };
   /** GitHub activity: the public username. An optional token is stored with the secrets. */
   github: { user: string };
+  /** LeetCode activity: the public username. */
+  leetcode: { user: string };
   /** Calendar: ICS links and CalDAV accounts (the link or app password is stored with the secrets), the notice before an event, the next-event part's horizon. */
   calendar: CalendarSettings;
   /** Live notices: Windows notifications and crest-notify in the closed notch, with per-app rules and quiet hours. */
@@ -216,6 +218,7 @@ const defaults: Settings = {
   system: { colors: "calm", gpu: "", gpuIndex: 0, sort: "cpu" },
   launcher: { favorites: null, hotkeys: false },
   github: { user: "" },
+  leetcode: { user: "" },
   calendar: CALENDAR_DEFAULTS,
   notices: NOTICE_DEFAULTS,
   behavior: WINDOW_DEFAULTS,
@@ -312,6 +315,7 @@ function migrate({ language: _old, ...s }: Settings & { language?: unknown }): S
     // Only an explicit opt-in turns the keys on; an older saved `shortcuts: true` does not.
     launcher: { favorites: normalizeFavorites(s.launcher?.favorites), hotkeys: s.launcher?.hotkeys === true },
     github: { ...defaults.github, ...s.github },
+    leetcode: { ...defaults.leetcode, ...s.leetcode },
     calendar: normalizeCalendar(s.calendar),
     capture: { ...defaults.capture, ...s.capture },
     recorder: { ...defaults.recorder, ...s.recorder },
