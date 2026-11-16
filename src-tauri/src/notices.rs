@@ -553,12 +553,21 @@ pub fn notices_remove_windows(ids: Vec<u32>) {
 }
 
 /// Opens the app a Windows notice came from by its AppUserModelID, as the Start menu does (the listener cannot
-/// press the toast itself, so the app opens on its own start page).
+/// press the toast itself, so the app opens on its own start page). "no app" when the Start menu's app list does not
+/// have the id (system notifications, a tray icon's balloon, an app removed since): Explorer would open Documents
+/// instead (issue #50), so the caller opens the Notices page.
 #[cfg(windows)]
 #[tauri::command]
-pub fn notices_open_app(app_id: String) -> Result<(), String> {
+pub async fn notices_open_app(app_id: String) -> Result<(), String> {
     if !valid_app_id(&app_id) {
         return Err("not an app id".into());
+    }
+    let probe = app_id.clone();
+    let listed = tauri::async_runtime::spawn_blocking(move || crate::launcher::on_sta(move || crate::launcher::in_apps_folder(&probe)).unwrap_or(false))
+        .await
+        .unwrap_or(false);
+    if !listed {
+        return Err("no app".into());
     }
     crate::opener().arg(format!("shell:AppsFolder\\{app_id}")).spawn().map(|_| ()).map_err(|e| e.to_string())
 }

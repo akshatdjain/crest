@@ -1353,10 +1353,8 @@ export const noticeSource = {
   pickSound: (): Promise<string | null> => (isNative && !isMac ? invoke<string | null>("notices_sound_pick") : Promise.resolve(null)),
   /** The kept sound file's bytes; rejects with "none" when there is no copy. */
   readSound: (): Promise<ArrayBuffer> => (isNative && !isMac ? invoke<ArrayBuffer>("notices_sound_read") : Promise.reject(new Error("none"))),
-  /** Opens the app a Windows notice came from, on its start page. */
-  openApp: (appId: string) => {
-    if (isNative) void invoke("notices_open_app", { appId }).catch(() => {});
-  },
+  /** Opens the app a Windows notice came from, on its start page; false when Windows has no app by that id (a system notification, a tray icon's balloon). */
+  openApp: (appId: string): Promise<boolean> => (isNative ? invoke("notices_open_app", { appId }).then(() => true, () => false) : Promise.resolve(true)),
   /** A notice's one-time code on the clipboard, kept out of every clipboard history and emptied after 30 s unless something else was copied (the Vault's way). The browser has only the plain clipboard. */
   copyCode: (code: string): Promise<void> => (isNative ? invoke<void>("notices_copy_code", { code }) : navigator.clipboard.writeText(code)),
   onNotice: (handler: (n: IncomingNotice) => void): (() => void) => {

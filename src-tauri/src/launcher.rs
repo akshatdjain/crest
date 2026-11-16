@@ -242,6 +242,12 @@ pub fn launch_from_key(app: &AppHandle, id: String) {
     });
 }
 
+/// Whether the Start menu's app list (`shell:AppsFolder`) has this AppUserModelID. Needs COM: run it through `on_sta`.
+pub(crate) fn in_apps_folder(app_id: &str) -> bool {
+    let item: windows::core::Result<IShellItem> = unsafe { SHCreateItemFromParsingName(&HSTRING::from(format!("{APPS_PREFIX}{app_id}")), None) };
+    item.is_ok()
+}
+
 /// The entry's icon as a PNG data URL (works for `shell:AppsFolder\…` ids and exe paths).
 pub(crate) fn icon_png(id: &str) -> Option<String> {
     unsafe {
@@ -293,4 +299,21 @@ unsafe fn bitmap_to_png(bitmap: HBITMAP) -> Option<Vec<u8>> {
     let mut png = Vec::new();
     img.write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png).ok()?;
     Some(png)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn apps_folder_has_listed_ids_not_made_up_ones() {
+        // A machine whose Start list cannot be read (a service account) has nothing to check.
+        let Some(Ok(listed)) = on_sta(start_apps) else { return };
+        let ids: Vec<String> = listed.iter().take(10).filter_map(|a| a.id.strip_prefix(APPS_PREFIX).map(str::to_string)).collect();
+        if !ids.is_empty() {
+            assert_eq!(on_sta(move || ids.iter().any(|id| in_apps_folder(id))), Some(true));
+        }
+        // Explorer opens Documents for an id like this one (issue #50), so notices must not hand it over.
+        assert_eq!(on_sta(|| in_apps_folder("Crest.Test.NotAnApp")), Some(false));
+    }
 }
