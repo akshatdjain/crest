@@ -175,7 +175,19 @@ function ThemeChoice() {
       )}
       {!isMac && !demo && themes.glass && <GlassLook />}
       {!isMac && !demo && themes.glass && support?.supported === true && <GlassLive />}
+      {!isMac && !demo && themes.glass && support?.supported === true && <GlassAlerts />}
     </Group>
+  );
+}
+
+/** Status alerts as clear glass (src/notch/Notch.tsx), over the live copy that runs for each one. */
+function GlassAlerts() {
+  const on = settings.use().themes.glassAlerts;
+  const label = t("Statusmeldungen");
+  return (
+    <Row label={label} hint={t("Lautstärke, Helligkeit und die anderen Meldungen als klares Glas. Solange eine zu sehen ist und ein paar Sekunden danach, fehlt die Notch in Screenshots und Aufnahmen.")}>
+      <Switch label={`${t("Glas")}: ${label}`} checked={on} onChange={(glassAlerts) => updateSettings((cur) => ({ themes: { ...cur.themes, glassAlerts } }))} />
+    </Row>
   );
 }
 

@@ -311,7 +311,7 @@ unsafe fn ddc_set(monitor: HMONITOR, percent: u8) -> Option<bool> {
 }
 
 /// A laptop's own panel: internal, embedded DisplayPort (eDP) or embedded UDI.
-fn embedded(tech: DISPLAYCONFIG_VIDEO_OUTPUT_TECHNOLOGY) -> bool {
+pub(crate) fn embedded(tech: DISPLAYCONFIG_VIDEO_OUTPUT_TECHNOLOGY) -> bool {
     tech == DISPLAYCONFIG_OUTPUT_TECHNOLOGY_INTERNAL || tech == DISPLAYCONFIG_OUTPUT_TECHNOLOGY_DISPLAYPORT_EMBEDDED || tech == DISPLAYCONFIG_OUTPUT_TECHNOLOGY_UDI_EMBEDDED
 }
 

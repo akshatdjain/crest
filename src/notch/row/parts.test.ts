@@ -39,7 +39,10 @@ test("does not alias the defaults", () => {
   assert.deepEqual(CLOSED_DEFAULTS.order, [...PART_IDS]); assert.equal(CLOSED_DEFAULTS.parts.timer, true); assert.equal(CLOSED_DEFAULTS.readings.cpu, true);
 });
 test("status alerts setting", () => {
-  const alerts = { power: true, net: true, bt: true, volume: true, brightness: true, lock: true, insert: false, hideOsd: false, mic: true };
+  const alerts = {
+    power: true, saver: true, net: true, airplane: true, bt: true, output: true, display: true, volume: true, brightness: true,
+    lock: true, insert: false, mic: true, focus: true, clip: false, hideOsd: false, everywhere: false,
+  };
   assert.deepEqual(normalizeClosed(undefined).statusAlerts, alerts);
   // 0.2 saved only the first three: the new ones take their defaults.
   assert.deepEqual(normalizeClosed({ statusAlerts: { net: false, power: true, bt: true } }).statusAlerts, { ...alerts, net: false });

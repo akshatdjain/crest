@@ -6,7 +6,8 @@
 //!   75 when Crest restarted in between and has nothing to go back to).
 //!
 //! Nothing here runs by itself: the state is read when Overview asks (`quick_get`), and changed on a click or the shortcut.
-//! The shortcut sends `status://mic` so the closed notch can say it (status alert "Microphone").
+//! The shortcut sends `status://mic` so the closed notch can say it (status alert "Microphone"); a mute from anywhere else (a key on the
+//! laptop, Windows' settings, another app) comes from sysevents.rs, which skips the changes made here.
 
 use tauri::{AppHandle, Emitter};
 
@@ -44,7 +45,8 @@ mod sys {
             return Err("none".into());
         }
         for e in &endpoints {
-            unsafe { e.SetMute(on, std::ptr::null()) }.map_err(|e| e.message())?;
+            // Tagged as Crest's own, so the status alert's watcher (sysevents.rs) leaves it to the shortcut, which says it itself.
+            unsafe { e.SetMute(on, &crate::controls::OWN_CHANGE) }.map_err(|e| e.message())?;
         }
         Ok(())
     }

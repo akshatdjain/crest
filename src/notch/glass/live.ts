@@ -1,6 +1,7 @@
 // The live glass on the closed notch and the capsule (docs/themes.md, Glass; capture/glass_live.rs, Windows 11 24H2): a capture session
 // around the closed shape, asked for from here one command at a time, its frames uploaded into the glass's second texture (GlassLayer.tsx).
-// While Glass and "Also the closed notch and capsule" are on, the notch window stays out of every capture, running or not.
+// While Glass and "Also the closed notch and capsule" are on, the notch window stays out of every capture, running or not; with that
+// switch off, also while a status alert is drawn as glass and a little after (Notch.tsx, liveForHud).
 
 import { createStore } from "../../lib/store";
 import { glassLive, isMac, isNative, onGlassLiveStop, onSessionState, type GlassLiveSupport, type GlassZone } from "../../platform/native";
@@ -32,6 +33,16 @@ let maxGen = 0, floor = 1, ended = 0, last = { gen: 0, seq: 0 };
 // A command in flight, a restart asked for meanwhile, a zone change waiting, a restart that waits for that change, a start sent in
 // this turn.
 let busy = false, again = false, settle = 0, moved = false, fresh = false;
+
+// A status alert wants the live glass while "Also the closed notch and capsule" is off; `resync` asks for the exclusion it needs.
+let hudWants = false, resync = () => {};
+
+/** A status alert drawn as glass (Notch.tsx) wants the live copy, and so the exclusion, although the closed notch's own glass is off. */
+export function liveForHud(on: boolean) {
+  if (on === hudWants) return;
+  hudWants = on;
+  resync();
+}
 
 /** The zone to run a session for: none while nothing can draw its frames (the canvas gone, its WebGL context lost). */
 const zone = () => (renderer ? want : null);
@@ -216,13 +227,14 @@ export function startGlassLive() {
   }
   // Asked at load with the state as it is, once Rust has said whether it can run, and again on every change.
   const sync = () => {
-    const t = settings.get().themes, on = t.glass && t.glassLive && liveSupport.get()?.supported === true;
+    const t = settings.get().themes, on = t.glass && (t.glassLive || hudWants) && liveSupport.get()?.supported === true;
     if (on === exclude && excluded !== null) return;
     exclude = on;
     // Also when the refusal came after the switch went off (its command was still out): on again, the exclusion is asked for again.
     refused = false;
     pump();
   };
+  resync = sync;
   settings.subscribe(sync);
   liveSupport.subscribe(sync);
   sync();

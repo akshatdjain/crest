@@ -1,7 +1,9 @@
 // Translated from BrimDeck (Apache-2.0, github.com/MoFeng2223/BrimDeck), src/BrimDeck/MainWindow.CompactColumn.cs.
 import { useLayoutEffect, type ReactNode } from "react";
 import { motion } from "motion/react";
-import { AlarmIcon, ArrowFatLineUp, BatteryHigh, BatteryLow, BatteryWarning, Bluetooth, CheckCircle, Coffee, DeviceMobile, GameController, Headphones, Keyboard, Microphone, MicrophoneSlash, Mouse, NumberSquareOne, Pause, Play, Plug, SpeakerHifi, SpeakerHigh, SpeakerLow, SpeakerNone, SpeakerX, Stop, Sun, SunDim, Watch, WifiHigh, WifiSlash, type Icon } from "@phosphor-icons/react";
+import { AlarmIcon, BatteryLow, BatteryWarning, CheckCircle, Coffee, Pause, Play, Stop } from "@phosphor-icons/react";
+import { STATUS_ICON } from "./statusIcons";
+import { hueVar } from "../../features/themes/hues";
 import { content, pulse } from "../../design/motion";
 import { t } from "../../i18n";
 import { ringing, timerActions, useSecondTick } from "../../features/timer/store";
@@ -46,11 +48,6 @@ interface Line { id: string; w: number; h: number; draw: () => ReactNode }
 const NOTICE_ICON = 17;
 /** The recording line: dot 8, time 14, two buttons, 4 between. */
 const REC_STACK = 8 + 14 + 2 * NOTICE_BUTTON + 3 * 4;
-const STATUS_ICON: Record<StatusAlert["icon"], Icon> = {
-  plug: Plug, battery: BatteryHigh, wifi: WifiHigh, "wifi-off": WifiSlash, headphones: Headphones,
-  "speaker-hifi": SpeakerHifi, mouse: Mouse, keyboard: Keyboard, gamepad: GameController, phone: DeviceMobile, watch: Watch, bluetooth: Bluetooth,
-  "speaker-high": SpeakerHigh, "speaker-low": SpeakerLow, "speaker-none": SpeakerNone, "speaker-x": SpeakerX, sun: Sun, "sun-dim": SunDim, "caps-lock": ArrowFatLineUp, "num-lock": NumberSquareOne, microphone: Microphone, "microphone-slash": MicrophoneSlash,
-};
 /** The HUD's level bar under the icon: 3 high, 4 below the icon. */
 const LEVEL_H = 3, LEVEL_GAP = 4;
 const TONE: Record<StatusAlert["tone"], string> = { normal: "var(--color-label)", warning: "var(--color-orange)", critical: "var(--color-red)" };
@@ -131,7 +128,7 @@ function useNoticeLine(): Line | null {
         h: NOTICE_ICON + LEVEL_GAP + LEVEL_H,
         draw: () => (
           <span className="flex flex-col items-center" style={{ gap: LEVEL_GAP, color: TONE[status.tone] }}>
-            <I size={NOTICE_ICON} weight="fill" />
+            <I size={NOTICE_ICON} weight="fill" style={status.accent && { color: hueVar(status.accent) }} />
             <span className="overflow-hidden rounded-full bg-fill-3" style={{ width: NOTICE_ICON, height: LEVEL_H }}>
               <span className="block h-full rounded-full" style={{ width: `${level}%`, background: status.icon === "speaker-x" ? "var(--color-label-3)" : "currentColor" }} />
             </span>
@@ -141,7 +138,7 @@ function useNoticeLine(): Line | null {
     }
     // Only the icon fits: the text goes in the tooltip and for screen readers, a key switched off or a device that left is dimmed.
     return line(`notice-${status.kind}-${status.icon}${status.off ? "-off" : ""}`, () => (
-      <span className="flex" role="img" aria-label={status.text} title={status.text} style={{ color: TONE[status.tone], opacity: status.off ? 0.45 : 1 }}>
+      <span className="flex" role="img" aria-label={status.text} title={status.text} style={{ color: status.accent ? hueVar(status.accent) : TONE[status.tone], opacity: status.off ? 0.45 : 1 }}>
         <I size={NOTICE_ICON} weight="fill" />
       </span>
     ));

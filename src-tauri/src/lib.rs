@@ -301,6 +301,7 @@ pub fn run() {
             display::display_screen,
             display::display_fullscreen,
             display::display_raise,
+            display::display_alert,
             display::display_apps,
             #[cfg(windows)]
             mirror::display_cursor_monitor,

@@ -791,15 +791,22 @@ function General() {
 }
 
 const statusAlerts: [keyof ClosedSettings["statusAlerts"], string, string][] = [
-  ["power", "Ladegerät und Akku", "Beim Ein- und Ausstecken, Akku bei 20 und 10 %"],
+  ["power", "Ladegerät und Akku", "Beim Ein- und Ausstecken, Akku bei 20 und 10 % und wenn er am Ladegerät fertig geladen ist"],
+  ["saver", "Energiesparen und Energiemodus", "Wenn das Energiesparen an- oder ausgeht oder du den Energiemodus wechselst"],
   ["net", "Netzwerk", "Wenn das Internet wegfällt und zurückkommt"],
+  ["airplane", "Flugzeugmodus", "Wenn der Flugzeugmodus an- oder ausgeht"],
   ["bt", "Bluetooth-Geräte", "Beim Verbinden oder Trennen, mit Akku, wenn das Gerät ihn meldet"],
+  ["output", "Ausgabegerät", "Wenn Windows den Ton auf andere Lautsprecher oder Kopfhörer legt; ein Wechsel in Crest zählt nicht"],
+  ["display", "Bildschirme", "Wenn ein Bildschirm angeschlossen oder getrennt wird, mit seiner Bildwiederholrate"],
   ["volume", "Lautstärke", "Mit Pegel, wenn sich die Lautstärke oder Stummschaltung ändert"],
   ["brightness", "Helligkeit", "Eingebauter Bildschirm sofort, externe Monitore über DDC/CI alle 2 Sekunden"],
   ["lock", "Feststell- und Num-Taste", "Wenn die Feststelltaste oder die Num-Taste umgeschaltet wird"],
   ["insert", "Einfg-Taste", "Wenn sie allein gedrückt wird; Tastenkürzel wie Umschalt+Einfg zählen nicht"],
-  ["mic", "Mikrofon", "Wenn das Tastenkürzel das Mikrofon stumm- oder wieder einschaltet"],
+  ["mic", "Mikrofon", "Wenn das Mikrofon stumm- oder wieder eingeschaltet wird: mit dem Tastenkürzel, einer Taste am Laptop oder in Windows"],
+  ["focus", "Nicht stören", "Wenn Nicht stören oder eine Fokussitzung an- oder ausgeht"],
+  ["clip", "Kopieren", "Wenn du Text, einen Link, ein Bild oder Dateien kopierst; braucht das Werkzeug Zwischenablage"],
   ["hideOsd", "Windows-Anzeige ausblenden", "Blendet die Lautstärke- und Helligkeitsanzeige von Windows aus, solange Crest läuft; braucht Lautstärke und Helligkeit"],
+  ["everywhere", "Überall anzeigen", "Lautstärke, Helligkeit, die Sperrtasten, das Mikrofon und das Kopieren auch über Vollbild-Apps und wenn Crest ausgeblendet ist; mit Windows-Anzeige ausblenden erscheint die von Windows nie"],
 ];
 
 /** Where and when the notch shows up. */

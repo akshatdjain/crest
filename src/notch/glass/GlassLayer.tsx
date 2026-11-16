@@ -7,7 +7,7 @@
 import { useLayoutEffect, useRef } from "react";
 import { cancelFrame, frame, useReducedMotion, type MotionValue } from "motion/react";
 import { activeTheme, darkInk } from "../../features/themes/store";
-import { glassVeilAt } from "../../features/themes/themes";
+import { GLASS_EDGE, glassVeilAt } from "../../features/themes/themes";
 import type { GlassZone } from "../../platform/native";
 import { settings } from "../../settings/store";
 import { DOCK_HEIGHT, HEADER_HEIGHT, type NotchGeometry } from "../geometry";
@@ -38,8 +38,8 @@ const ATTRS: WebGLContextAttributes = {
 
 /** `top`: the shape's top in the page as it springs (Notch.tsx useSpringTop): a floating capsule rises as its panel opens. */
 interface Shape { w: MotionValue<number>; h: MotionValue<number>; r: MotionValue<number>; ear: MotionValue<number>; rt: MotionValue<number>; top: MotionValue<number> }
-/** `look`: which copy is drawn, the open panel's (snapshot.ts) or the closed shapes' live one (live.ts). */
-interface Live { target: NotchGeometry; hangs: boolean; reduced: boolean; look: "panel" | "closed" }
+/** `look`: which copy is drawn, the open panel's (snapshot.ts) or the closed shapes' live one (live.ts); `hud`: a status alert fills the closed shape. */
+interface Live { target: NotchGeometry; hangs: boolean; reduced: boolean; look: "panel" | "closed"; hud: boolean }
 interface Glass { show(on: boolean): void; fit(): void; relook(): void; stop(): void }
 type Tint = NonNullable<ReturnType<typeof parseTint>>;
 type Gpu = NonNullable<ReturnType<typeof setup>>;
@@ -47,12 +47,12 @@ type Gpu = NonNullable<ReturnType<typeof setup>>;
 interface Copy { tex: WebGLTexture | null; w: number; h: number; levels: number; meta: GlassZone | null }
 
 /** The canvas under the open panel's content and under the closed row. Armed it rests at 1x1 with its context alive, so a peek pays no setup. */
-export function GlassLayer({ mode, look, w, h, r, ear, rt, top, target, hangs }: Shape & { mode: "armed" | "shown"; look: Live["look"]; target: NotchGeometry; hangs: boolean }) {
+export function GlassLayer({ mode, look, w, h, r, ear, rt, top, target, hangs, hud }: Shape & { mode: "armed" | "shown"; look: Live["look"]; target: NotchGeometry; hangs: boolean; hud: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const reduced = useReducedMotion() === true;
   // Read by the drawing, which runs outside React.
-  const live = useRef<Live>({ target, hangs, reduced, look });
-  live.current = { target, hangs, reduced, look };
+  const live = useRef<Live>({ target, hangs, reduced, look, hud });
+  live.current = { target, hangs, reduced, look, hud };
   const glass = useRef<Glass | null>(null);
 
   // Layout effects: the canvas is sized and its frame asked for before the paint where --shape turns clear, which with reduced motion
@@ -127,6 +127,8 @@ function startGlass(canvas: HTMLCanvasElement, shape: Shape, live: { current: Li
     if (!tint || !clear || !rim) return null;
     return { tint, edge: tint[3], clear: clear[3], rim, fill: [0, 0, 0, 0] as Tint, dark: true };
   };
+  /** The tool bar's veil (the side bands', --glass-tint-edge) for a status alert on a closed shape: the closed notch's theme's, else Dark's. */
+  const barVeil = () => (activeTheme.get().closedNotch ? tokens?.edge : parseTint(darkInk()["--glass-tint-edge"])?.[3]) ?? GLASS_EDGE;
 
   const paint = () => {
     const closed = live.current.look === "closed", src = closed ? liveCopy : snap;
@@ -166,11 +168,14 @@ function startGlass(canvas: HTMLCanvasElement, shape: Shape, live: { current: Li
     // Covering, the veil at full strength hides the copy while --shape comes back. Else Transparency (themes.ts glassVeilAt): the
     // content down to the theme's clearest, the side bands never clearer than their own; the tool bar keeps its own.
     const veil = (safe: number, clearest?: number) => (covering ? 1 : glassVeilAt(safe, look.glassTransparency, clearest));
+    // A status alert is clear glass like the tool bar: the side bands' veil whatever Transparency says, and no frost.
+    const hud = closed && live.current.hud;
     gl.uniform1f(u.uMaxShift, ((reduced ? GLASS.maxShiftReduced : GLASS.maxShift) * look.glassRefraction) / 100);
-    gl.uniform2f(u.uLod, ...lodFor(scale, look.glassFrost));
-    gl.uniform4f(u.uVeil, t.tint[0], t.tint[1], t.tint[2], veil(t.tint[3], t.clear));
+    gl.uniform2f(u.uLod, ...lodFor(scale, hud ? 0 : look.glassFrost));
+    const inside = hud ? (covering ? 1 : barVeil()) : veil(t.tint[3], t.clear);
+    gl.uniform4f(u.uVeil, t.tint[0], t.tint[1], t.tint[2], inside);
     // The closed shapes keep one veil all over: their row runs up to the sides, so no clearer side bands.
-    gl.uniform1f(u.uVeilEdge, closed ? veil(t.tint[3], t.clear) : veil(t.edge));
+    gl.uniform1f(u.uVeilEdge, closed ? inside : veil(t.edge));
     gl.uniform1f(u.uBarVeil, covering ? 1 : t.edge);
     gl.uniform1f(u.uDock, DOCK_HEIGHT);
     // The header is glass like the rest (issue #49). The brow, the veil's colour over it, is left only while covering and round top

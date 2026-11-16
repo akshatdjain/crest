@@ -46,6 +46,8 @@ export interface ThemeSettings {
   glassRim: number;
   /** The closed notch and the capsule drawn as glass too, over a live copy of the screen around them (Windows 11, src/notch/glass/live.ts). */
   glassLive: boolean;
+  /** Status alerts (volume, brightness, a copy and the others) drawn as clear glass over a live copy of the screen, while Glass is on (src/notch/Notch.tsx). */
+  glassAlerts: boolean;
   /** The whole app's font (FONTS), set as --font-sans; the terminal and the timer looks keep their monospace. */
   font: FontId;
 }
@@ -608,11 +610,13 @@ export const THEME_DEFAULTS: ThemeSettings = {
   iconColors: false,
   coverTint: false,
   glass: false,
-  glassTransparency: 0,
-  glassRefraction: 100,
-  glassFrost: 100,
+  // Glass first switched on: a panel a little more opaque than the mark (5% of the screen through with Dark), a softer bend, no frost.
+  glassTransparency: -75,
+  glassRefraction: 80,
+  glassFrost: 0,
   glassRim: 100,
   glassLive: false,
+  glassAlerts: true,
   font: "inter",
 };
 
@@ -657,6 +661,7 @@ export function normalizeThemeSettings(raw: unknown, legacyIconColors = false): 
     glassFrost: look("glassFrost"),
     glassRim: look("glassRim"),
     glassLive: s.glassLive === true,
+    glassAlerts: s.glassAlerts !== false,
     font: typeof s.font === "string" && Object.hasOwn(FONTS, s.font) ? s.font : THEME_DEFAULTS.font,
   };
 }

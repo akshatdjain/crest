@@ -21,6 +21,8 @@ export const GLASS = {
 } as const;
 /** A running live session moves to a zone inside its own once that zone has stayed the same this long; to one it does not hold, at once. */
 export const LIVE_SETTLE_MS = 150;
+/** After a status alert drawn as glass (with the closed notch's own glass off), its live session runs this long, so a run of keys keeps one. */
+export const HUD_LIVE_LINGER_MS = 5000;
 /** The copy is asked for this long before the hover delay ends: a first peek after a while is estimated at 60-115 ms. */
 export const GLASS_LEAD_MS = 120;
 /** In hover mode: a pointer that only crosses the notch takes no copy. */

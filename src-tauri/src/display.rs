@@ -68,6 +68,8 @@ pub struct DisplayState {
     opened: AtomicBool,
     /// The window is hidden right now.
     hidden: AtomicBool,
+    /// Shown for an indicator while the rules or the hotkey keep it hidden (`display_alert`); `sync` drops it on any change.
+    revealed: AtomicBool,
     /// Last behaviour the rules called for (Behavior as u8), for `display_screen`.
     behavior: AtomicU8,
     /// An app covers the notch's monitor in fullscreen right now, for `display_fullscreen`.
@@ -262,6 +264,37 @@ pub fn display_fullscreen(state: State<'_, DisplayState>) -> bool {
     state.fullscreen.load(Ordering::Relaxed)
 }
 
+/// While an indicator shows everywhere (status alerts), brings out the window that a rule or the hotkey keeps hidden, and hides it again
+/// after. It neither activates the window nor takes the pointer, so the app in front, a game or a video, keeps both: `hidden` stays true
+/// meanwhile, the hit-test thread rests and the window stays click-through. `sync` takes over whenever the reason to hide changes.
+#[tauri::command]
+pub fn display_alert(app: AppHandle, on: bool) {
+    let state = app.state::<DisplayState>();
+    let Some(window) = app.get_webview_window("notch") else { return };
+    if on {
+        if state.hidden.load(Ordering::Relaxed) && !state.revealed.swap(true, Ordering::Relaxed) {
+            show_quietly(&window);
+        }
+    } else if state.revealed.swap(false, Ordering::Relaxed) && state.hidden.load(Ordering::Relaxed) {
+        let _ = window.hide();
+    }
+}
+
+/// Shown without activation and click-through, on top of the other topmost windows: an indicator over the app in front.
+#[cfg(windows)]
+fn show_quietly(window: &WebviewWindow) {
+    use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_SHOWNOACTIVATE};
+    let _ = window.set_ignore_cursor_events(true);
+    if let Ok(hwnd) = window.hwnd() {
+        let _ = unsafe { ShowWindow(hwnd, SW_SHOWNOACTIVATE) };
+    }
+    raise_topmost(window);
+}
+
+/// The Mac has no status alerts.
+#[cfg(not(windows))]
+fn show_quietly(_window: &WebviewWindow) {}
+
 /// "Raise now": shows Crest if the hide hotkey hid it and puts it on top of the topmost windows.
 #[tauri::command]
 pub fn display_raise(app: AppHandle) {
@@ -368,6 +401,8 @@ fn sync(app: &AppHandle) {
     if state.hidden.swap(hide, Ordering::Relaxed) == hide {
         return;
     }
+    // Shown or hidden for good now: an indicator's reveal is over either way.
+    state.revealed.store(false, Ordering::Relaxed);
     crate::mirror::wake(app);
     // Hiding the window does not hide the page, so the Camera tool learns it here.
     let _ = app.emit("notch://hidden", hide);

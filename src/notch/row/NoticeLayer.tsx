@@ -1,11 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { AlarmIcon, ArrowFatLineUp, BatteryHigh, BatteryLow, BatteryWarning, Bluetooth, CheckCircle, DeviceMobile, FilmStrip, GameController, Headphones, Keyboard, Microphone, MicrophoneSlash, Mouse, NumberSquareOne, Pause, Play, Plug, SpeakerHifi, SpeakerHigh, SpeakerLow, SpeakerNone, SpeakerX, Stop, Sun, SunDim, Watch, Waveform, WifiHigh, WifiSlash, ArrowSquareOut, ImageSquare, type Icon } from "@phosphor-icons/react";
+import { AlarmIcon, BatteryLow, BatteryWarning, CheckCircle, FilmStrip, Pause, Play, Stop, Waveform, ArrowSquareOut, ImageSquare } from "@phosphor-icons/react";
+import { STATUS_ICON } from "./statusIcons";
 import { pauseRecording, recording, saved, stopRecording, type Saved } from "../../features/capture/store";
 import { elapsedAt, formatElapsed } from "../../features/capture/clock";
 import { openFile } from "../../platform/services";
 import { openOn } from "../nav";
-import { content, pulse } from "../../design/motion";
+import { content, fade, pulse, springs } from "../../design/motion";
+import { hueVar } from "../../features/themes/hues";
 import { useNowPlaying } from "../../platform/media";
 import type { UsageId } from "../../platform/services";
 import { settings } from "../../settings/store";
@@ -27,7 +29,6 @@ import { brandName } from "../../ui/brands";
 import { formatIn } from "../../lib/format";
 import { t } from "../../i18n";
 import { QUOTA, SAVED, TRACK, armTrack, detectRise, newQuotaTracker, observeTrack, topNotice, type QuotaRise, type TrackGate } from "./notices";
-import type { StatusAlert } from "./status";
 import { trackCaption } from "./parts";
 import { fontEpoch, measureText } from "./measure";
 import { Marquee } from "./Marquee";
@@ -45,12 +46,13 @@ import { noticeCard } from "./NoticeCard";
 const ICON = 17, GAP = 6, QUOTA_RING = 14, NAME_MAX = 76, REC_DOT = 8, THUMB_W = 56, THUMB_H = 32, LEVEL_BAR = 56, ROW_H = 30;
 /** The card's way in, after the shape has started growing; the overshoot is an entrance only, it leaves with a plain fade. */
 const CARD_IN = { opacity: { duration: 0.25, delay: 0.08 }, transform: { type: "spring" as const, stiffness: 420, damping: 26, delay: 0.08 } };
-const STATUS_ICON: Record<StatusAlert["icon"], Icon> = {
-  plug: Plug, battery: BatteryHigh, wifi: WifiHigh, "wifi-off": WifiSlash, headphones: Headphones,
-  "speaker-hifi": SpeakerHifi, mouse: Mouse, keyboard: Keyboard, gamepad: GameController, phone: DeviceMobile, watch: Watch, bluetooth: Bluetooth,
-  "speaker-high": SpeakerHigh, "speaker-low": SpeakerLow, "speaker-none": SpeakerNone, "speaker-x": SpeakerX, sun: Sun, "sun-dim": SunDim, "caps-lock": ArrowFatLineUp, "num-lock": NumberSquareOne, microphone: Microphone, "microphone-slash": MicrophoneSlash,
-};
 const TONE = { normal: "var(--color-label)", warning: "var(--color-orange)", critical: "var(--color-red)" } as const;
+/** A status icon that changes in place (louder, muted, Caps Lock off) leaves and comes in with a little scale and blur. */
+const ICON_SWAP = {
+  from: { opacity: 0, transform: "scale(0.6)", filter: "blur(2px)" },
+  to: { opacity: 1, transform: "scale(1)", filter: "blur(0px)" },
+  transition: { ...springs.snappy, opacity: fade, filter: fade },
+};
 
 /** The capture saved in the last SAVED.showMs (also one taken while the notch was open, for what is left of its time). */
 function useSaved(): Saved | null {
@@ -125,7 +127,7 @@ function useTrackCaption(on: boolean): string | null {
  * while a finished timer, a recording, a status alert, an app's notice or a due to-do opens it into the notch (`urgentOnly`: the others wait).
  * Drawn `scale` times its designed size like the row; `max` is the widest it gets at that size.
  */
-export function NoticeLayer({ max, scale, onSize, urgentOnly }: { max: number; scale: number; onSize: (content: { width: number; height: number } | null) => void; urgentOnly: boolean }) {
+export function NoticeLayer({ max, scale, onSize, urgentOnly, mono = false }: { max: number; scale: number; onSize: (content: { width: number; height: number; exact: boolean } | null) => void; urgentOnly: boolean; mono?: boolean }) {
   fontEpoch.use();
   const timerHover = useNoticeHover();
   const { closed, productivity } = settings.use();
@@ -257,15 +259,28 @@ export function NoticeLayer({ max, scale, onSize, urgentOnly }: { max: number; s
     width = ICON + GAP + bar + textW;
     // One key per kind: a newer alert of the same kind swaps its text in place instead of cross-fading.
     key = `status:${status.kind}`;
+    // Only the icon in the alert's hue (volume blue, brightness yellow, Caps Lock on red); the bar and the text in its tone. Over clear glass (`mono`)
+    // no hue keeps its contrast over every backdrop, so the icon takes the text's ink, as the tool bar's icons do.
+    const ink = status.accent && !mono ? hueVar(status.accent) : TONE[status.tone];
     body = (
       <span className="flex h-full items-center" style={{ gap: GAP, color: TONE[status.tone] }}>
-        <I size={ICON} weight="fill" className="shrink-0" />
+        <span className="relative shrink-0" style={{ width: ICON, height: ICON, color: ink }}>
+          <AnimatePresence initial={false}>
+            <motion.span key={`${status.icon}:${status.tone}`} className="absolute inset-0 flex" initial={ICON_SWAP.from} animate={ICON_SWAP.to} exit={ICON_SWAP.from} transition={ICON_SWAP.transition}>
+              <I size={ICON} weight="fill" />
+            </motion.span>
+          </AnimatePresence>
+        </span>
         {status.level !== undefined && (
           <span className="h-1 shrink-0 overflow-hidden rounded-full bg-fill-3" style={{ width: LEVEL_BAR }}>
-            <span
-              className="block h-full origin-left rounded-full transition-transform duration-150 ease-out rtl:origin-right"
+            <motion.span
+              className="block h-full origin-left rounded-full rtl:origin-right"
+              // A held key moves it on a spring, from where it stands: no jump back to the start.
+              initial={false}
+              animate={{ scaleX: status.level / 100 }}
+              transition={springs.snappy}
               // Muted keeps the level, greyed, as Windows shows it.
-              style={{ transform: `scaleX(${status.level / 100})`, background: status.icon === "speaker-x" ? "var(--color-label-3)" : "currentColor" }}
+              style={{ background: status.icon === "speaker-x" ? "var(--color-label-3)" : "currentColor" }}
             />
           </span>
         )}
@@ -306,10 +321,14 @@ export function NoticeLayer({ max, scale, onSize, urgentOnly }: { max: number; s
   else if (kind === "water") ({ width, height, key, body } = waterNotice(productivity.water.goalMl, max));
   else if (kind === "whatsnew" && news) ({ width, height, key, body } = whatsNewNotice(news, max));
   const card = height > ROW_H;
-  const dpi = (window.devicePixelRatio || 1) * scale;
+  // A status alert keeps its own size whatever the notch's: drawn at its designed scale (`k` undoes the content scale it sits in),
+  // and the shape is just wide and tall enough for it (Notch.tsx, `exact`).
+  const exact = kind === "status";
+  const k = exact ? 1 / scale : 1;
+  const dpi = (window.devicePixelRatio || 1) * (exact ? 1 : scale);
   // An even number of device pixels, as the row, so the centred notice starts on a whole one.
   width = Math.min(max, (Math.ceil((width * dpi) / 2 - 1e-9) * 2) / dpi);
-  useLayoutEffect(() => onSize(kind ? { width, height } : null), [kind, width, height, onSize]);
+  useLayoutEffect(() => onSize(kind ? { width, height, exact } : null), [kind, width, height, exact, onSize]);
   useEffect(() => () => onSize(null), [onSize]);
 
   return (
@@ -319,10 +338,11 @@ export function NoticeLayer({ max, scale, onSize, urgentOnly }: { max: number; s
           <motion.div
             key={key}
             className="absolute top-0 left-1/2 flex items-center justify-center"
-            style={{ width, height, marginLeft: -width / 2 }}
-            // A card waits for the notch to grow, then comes in from a little smaller with a soft overshoot.
-            initial={card ? { opacity: 0, transform: "scale(0.94)" } : { opacity: 0 }}
-            animate={card ? { opacity: 1, transform: "scale(1)", transition: CARD_IN } : { opacity: 1, transition: content.enter }}
+            style={{ width, height, marginLeft: -width / 2, ...(exact && { transformOrigin: "50% 0" }) }}
+            // A card waits for the notch to grow, then comes in from a little smaller with a soft overshoot; a status alert settles
+            // in from a touch smaller and softer while the shape springs to its size.
+            initial={card ? { opacity: 0, transform: "scale(0.94)" } : exact ? { opacity: 0, transform: `scale(${0.96 * k})`, filter: "blur(2px)" } : { opacity: 0 }}
+            animate={card ? { opacity: 1, transform: "scale(1)", transition: CARD_IN } : exact ? { opacity: 1, transform: `scale(${k})`, filter: "blur(0px)", transition: content.enter } : { opacity: 1, transition: content.enter }}
             exit={{ opacity: 0, transition: content.exit }}
           >
             {body}

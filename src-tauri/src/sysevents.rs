@@ -1,5 +1,6 @@
-//! System status for the closed notch's alerts: charger and battery, internet,
-//! Bluetooth devices, and the volume of the default output device for the HUD (brightness is in brightness.rs).
+//! System status for the closed notch's alerts: charger and battery, internet, Bluetooth devices, the volume of the default output
+//! device for the HUD (brightness is in brightness.rs), the sound output itself, the microphone's mute, Do Not Disturb, airplane mode
+//! and the power mode (monitors are in mirror.rs).
 //!
 //! One thread with a message-only window. Power settings arrive as WM_POWERBROADCAST and are
 //! handled in the GetMessageW loop, so the thread sleeps at idle. The network, Bluetooth and audio
@@ -9,15 +10,19 @@
 //! so registering it is silent too; changes Crest makes itself carry `controls::OWN_CHANGE` and are skipped.
 //! Caps Lock and Num Lock have no change event short of a keyboard hook, so a small thread reads them every `LOCK_POLL` while their alert is on and can show;
 //! the Insert alert reads that key's toggle bit on the same thread.
-//! The Bluetooth watcher and the volume callback run only while their alerts are on (`status_configure`).
+//! The Bluetooth watcher and the volume and microphone callbacks run only while their alerts are on (`status_configure`).
+//! Do Not Disturb has no public change event either: a thread reads it every `FOCUS_POLL` while its alert is on and can show. Airplane
+//! mode has none that is documented: a thread waits on its registry key. The power mode and the battery's report call back on their own.
+//! Changes Crest makes itself (the output device, Do Not Disturb, the power plan) are marked with `own` and not told back.
 //! The session's lock and its move to a remote client or away from the console come as WM_WTSSESSION_CHANGE; with the
 //! screen and sleep state they go to the page as `status://session`, which the glass's live copy waits on.
 
 use std::collections::HashMap;
-use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicUsize, Ordering};
+use std::ffi::c_void;
+use std::sync::atomic::{AtomicBool, AtomicIsize, AtomicU64, AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 
 use serde::Serialize;
 use tauri::{AppHandle, Emitter};
@@ -29,20 +34,29 @@ use windows::Win32::Devices::DeviceAndDriverInstallation::{
 use windows::Win32::Devices::Properties::{DEVPKEY_Device_ContainerId, DEVPROPTYPE, DEVPROP_TYPE_BYTE, DEVPROP_TYPE_GUID};
 use windows::Win32::Media::Audio::Endpoints::{IAudioEndpointVolume, IAudioEndpointVolumeCallback, IAudioEndpointVolumeCallback_Impl};
 use windows::Win32::Media::Audio::{
-    eConsole, eRender, EDataFlow, ERole, IMMDeviceEnumerator, AUDIO_VOLUME_NOTIFICATION_DATA, IMMNotificationClient, IMMNotificationClient_Impl, MMDeviceEnumerator, DEVICE_STATE,
+    eCapture, eConsole, eRender, EDataFlow, ERole, IMMDeviceEnumerator, AUDIO_VOLUME_NOTIFICATION_DATA, IMMNotificationClient, IMMNotificationClient_Impl, MMDeviceEnumerator, DEVICE_STATE,
 };
-use windows::core::{Array, Interface, Ref, HSTRING};
+use windows::core::{Array, IInspectable, Interface, Ref, HSTRING};
+use windows::Devices::Power::Battery;
 use windows::Devices::Enumeration::{DeviceInformation, DeviceInformationKind, DeviceInformationUpdate, DeviceWatcher};
 use windows_collections::IIterable;
 use windows::Foundation::{IPropertyValue, TypedEventHandler};
 use windows::Networking::Connectivity::{NetworkConnectivityLevel, NetworkInformation, NetworkStatusChangedEventHandler};
 use windows::Win32::Foundation::{DEVPROPKEY, HANDLE, HWND, LPARAM, LRESULT, PROPERTYKEY, WPARAM};
-use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED};
+use windows::Win32::System::Com::StructuredStorage::{PropVariantToStringAlloc, PropVariantToUInt32};
+use windows::Win32::System::Com::{CoCreateInstance, CoInitializeEx, CLSCTX_ALL, COINIT_MULTITHREADED, STGM_READ};
+use windows::Win32::System::Registry::{
+    RegNotifyChangeKeyValue, RegOpenKeyExW, RegQueryValueExW, HKEY, HKEY_LOCAL_MACHINE, KEY_NOTIFY, KEY_QUERY_VALUE, REG_DWORD, REG_NOTIFY_CHANGE_LAST_SET, REG_VALUE_TYPE,
+};
+use windows::Win32::System::SystemInformation::GetTickCount64;
 use windows::Win32::System::LibraryLoader::GetModuleHandleW;
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     GetAsyncKeyState, GetKeyState, VIRTUAL_KEY, VK_CAPITAL, VK_CONTROL, VK_INSERT, VK_LWIN, VK_MENU, VK_NUMLOCK, VK_RWIN, VK_SHIFT,
 };
-use windows::Win32::System::Power::{GetSystemPowerStatus, RegisterPowerSettingNotification, RegisterSuspendResumeNotification, POWERBROADCAST_SETTING, SYSTEM_POWER_STATUS};
+use windows::Win32::System::Power::{
+    GetSystemPowerStatus, PowerRegisterForEffectivePowerModeNotifications, RegisterPowerSettingNotification, RegisterSuspendResumeNotification, EFFECTIVE_POWER_MODE,
+    EFFECTIVE_POWER_MODE_V1, EFFECTIVE_POWER_MODE_V2, POWERBROADCAST_SETTING, SYSTEM_POWER_STATUS,
+};
 use windows::Win32::System::RemoteDesktop::{
     WTSFreeMemory, WTSQuerySessionInformationW, WTSRegisterSessionNotification, WTSSessionInfoEx, NOTIFY_FOR_THIS_SESSION, WTSINFOEXW,
     WTS_CURRENT_SERVER_HANDLE, WTS_CURRENT_SESSION, WTS_SESSIONSTATE_LOCK,
@@ -89,12 +103,42 @@ const BT_SETTLE_MS: u32 = 1000;
 const WM_VOL: u32 = WM_APP + 4;
 /// The default output device changed: the volume callback moves to the new one.
 const WM_VOLDEV: u32 = WM_APP + 5;
-/// `status_configure` switched the Bluetooth or the volume source; the loop reads `SOURCES`.
+/// `status_configure` switched the Bluetooth, the volume or the microphone source; the loop reads `SOURCES`.
 const WM_SOURCES: u32 = WM_APP + 6;
 const SRC_BT: usize = 1;
 const SRC_VOLUME: usize = 2;
-/// The sources the settings want on; both until the frontend says otherwise.
-static SOURCES: AtomicUsize = AtomicUsize::new(SRC_BT | SRC_VOLUME);
+const SRC_MIC: usize = 4;
+/// Posted from the audio service thread on a change of the default microphone's volume or mute, as WM_VOL.
+const WM_MIC: u32 = WM_APP + 8;
+/// The default microphone changed: its callback moves to the new one.
+const WM_MICDEV: u32 = WM_APP + 9;
+/// Windows' effective power mode changed (wParam the mode), from its own callback thread.
+const WM_MODE: u32 = WM_APP + 10;
+/// The sources the settings want on; all until the frontend says otherwise.
+static SOURCES: AtomicUsize = AtomicUsize::new(SRC_BT | SRC_VOLUME | SRC_MIC);
+
+/// Crest's own switches, whose result the status alerts do not tell back: the output device and Do Not Disturb (controls.rs), the
+/// power plan (power.rs).
+#[derive(Clone, Copy)]
+pub(crate) enum Own {
+    Output,
+    Focus,
+    Plan,
+}
+/// Until when (GetTickCount64, ms) a change of each counts as Crest's own: Windows tells of it within moments.
+static OWN_UNTIL: [AtomicU64; 3] = [AtomicU64::new(0), AtomicU64::new(0), AtomicU64::new(0)];
+const OWN_MS: u64 = 3000;
+
+/// Crest is about to switch `what`: the change that follows is no alert.
+pub(crate) fn own(what: Own) {
+    OWN_UNTIL[what as usize].store(unsafe { GetTickCount64() } + OWN_MS, Ordering::SeqCst);
+}
+
+fn is_own(what: Own) -> bool {
+    let now = unsafe { GetTickCount64() };
+    now < OWN_UNTIL[what as usize].load(Ordering::SeqCst)
+}
+
 /// The loop's window, 0 until it exists.
 static LOOP: AtomicIsize = AtomicIsize::new(0);
 /// The session was locked or unlocked, moved to or from a remote client, or the screen or sleep state changed.
@@ -253,10 +297,40 @@ fn run(app: AppHandle) {
         let mut connected: Option<HashMap<String, BtDevice>> = None;
         let mut enumerated = false;
 
-        let volume_client: IAudioEndpointVolumeCallback = VolumeWatch(h).into();
+        let volume_client: IAudioEndpointVolumeCallback = LevelWatch(h, WM_VOL).into();
         let mut volume_on = sources & SRC_VOLUME != 0;
-        let mut volume = devices.as_ref().filter(|_| volume_on).and_then(|d| watch_volume(d, &volume_client));
+        let mut volume = devices.as_ref().filter(|_| volume_on).and_then(|d| watch_level(d, eRender, &volume_client));
         let mut last_volume = volume.as_ref().map(|v| v.1);
+        // The default microphone's mute, the same way: a key on the laptop, Windows' settings or another app muting it.
+        let mic_client: IAudioEndpointVolumeCallback = LevelWatch(h, WM_MIC).into();
+        let mut mic_on = sources & SRC_MIC != 0;
+        let mut mic = devices.as_ref().filter(|_| mic_on).and_then(|d| watch_level(d, eCapture, &mic_client));
+        let mut last_mic = mic.as_ref().map(|m| m.1 .1);
+        // The sound output now is the baseline: the alert says where the sound goes next.
+        let mut output = devices.as_ref().and_then(default_output).map(|o| o.id);
+
+        // The charging flag has no power setting of its own: the battery's report says when it changes (a full battery, a charge
+        // limit), and the loop reads the state again. A PC without a battery reports nothing.
+        let report = TypedEventHandler::<Battery, IInspectable>::new(move |_, _| {
+            let _ = PostMessageW(Some(HWND(h as _)), WM_POWER, WPARAM(0), LPARAM(0));
+            Ok(())
+        });
+        let _battery = Battery::AggregateBattery()
+            .and_then(|b| b.ReportUpdated(&report).map(|_| b))
+            .inspect_err(|e| eprintln!("sysevents: battery report failed: {e}"))
+            .ok();
+        // The power mode; its first callback is the mode now, the baseline (`user_mode`). Version 2 knows game mode, which
+        // version 1 (before Windows 10 2004) does not.
+        let mut registration: *mut c_void = std::ptr::null_mut();
+        let context = Some(hwnd.0 as *const c_void);
+        if [EFFECTIVE_POWER_MODE_V2, EFFECTIVE_POWER_MODE_V1]
+            .into_iter()
+            .all(|version| PowerRegisterForEffectivePowerModeNotifications(version, Some(mode_changed), context, &mut registration).is_err())
+        {
+            eprintln!("sysevents: power mode notification failed");
+        }
+        let mut last_mode = None;
+        watch_airplane(app.clone());
 
         let _ = app.emit("status://seed", status_seed());
 
@@ -336,12 +410,41 @@ fn run(app: AppHandle) {
                         emit_level(&app, "volume", now.0, now.1);
                     }
                 }
-                WM_VOLDEV if volume_on => {
-                    if let Some((endpoint, _)) = &volume {
-                        let _ = endpoint.UnregisterControlChangeNotify(&volume_client);
+                WM_VOLDEV => {
+                    if volume_on {
+                        if let Some((endpoint, _)) = &volume {
+                            let _ = endpoint.UnregisterControlChangeNotify(&volume_client);
+                        }
+                        volume = devices.as_ref().and_then(|d| watch_level(d, eRender, &volume_client));
+                        last_volume = volume.as_ref().map(|v| v.1);
                     }
-                    volume = devices.as_ref().and_then(|d| watch_volume(d, &volume_client));
-                    last_volume = volume.as_ref().map(|v| v.1);
+                    // Where the sound went, unless Crest moved it; none at all is a new start, so the next device alerts.
+                    let now = devices.as_ref().and_then(default_output);
+                    if now.as_ref().map(|o| &o.id) != output.as_ref() {
+                        output = now.as_ref().map(|o| o.id.clone());
+                        if let Some(o) = now.filter(|_| !is_own(Own::Output)) {
+                            let _ = app.emit("status://output", serde_json::json!({ "name": o.name, "form": o.form }));
+                        }
+                    }
+                }
+                WM_MIC if mic_on => {
+                    let muted = msg.lParam.0 & 1 != 0;
+                    // Crest's own mute only moves the baseline: the shortcut says it itself, Overview's switch shows it.
+                    if last_mic.replace(muted).is_some_and(|before| before != muted) && msg.lParam.0 & 2 == 0 {
+                        let _ = app.emit("status://mic", serde_json::json!({ "muted": muted }));
+                    }
+                }
+                WM_MICDEV if mic_on => {
+                    if let Some((endpoint, _)) = &mic {
+                        let _ = endpoint.UnregisterControlChangeNotify(&mic_client);
+                    }
+                    mic = devices.as_ref().and_then(|d| watch_level(d, eCapture, &mic_client));
+                    last_mic = mic.as_ref().map(|m| m.1 .1);
+                }
+                WM_MODE => {
+                    if let Some(mode) = user_mode(&mut last_mode, msg.wParam.0 as i32).filter(|_| !is_own(Own::Plan)) {
+                        let _ = app.emit("status://mode", serde_json::json!({ "mode": mode }));
+                    }
                 }
                 WM_SOURCES => {
                     let sources = SOURCES.load(Ordering::SeqCst);
@@ -366,9 +469,19 @@ fn run(app: AppHandle) {
                             let _ = endpoint.UnregisterControlChangeNotify(&volume_client);
                         }
                         if volume_on {
-                            volume = devices.as_ref().and_then(|d| watch_volume(d, &volume_client));
+                            volume = devices.as_ref().and_then(|d| watch_level(d, eRender, &volume_client));
                         }
                         last_volume = volume.as_ref().map(|v| v.1);
+                    }
+                    if (sources & SRC_MIC != 0) != mic_on {
+                        mic_on = !mic_on;
+                        if let Some((endpoint, _)) = mic.take() {
+                            let _ = endpoint.UnregisterControlChangeNotify(&mic_client);
+                        }
+                        if mic_on {
+                            mic = devices.as_ref().and_then(|d| watch_level(d, eCapture, &mic_client));
+                        }
+                        last_mic = mic.as_ref().map(|m| m.1 .1);
                     }
                 }
                 _ => {
@@ -487,7 +600,7 @@ fn online() -> bool {
         .is_ok_and(|level| level == NetworkConnectivityLevel::InternetAccess)
 }
 
-/// Runs on an audio service thread: it only tells the loop that the default output changed.
+/// Runs on an audio service thread: it only tells the loop that the default output or microphone changed.
 #[implement(IMMNotificationClient)]
 struct Endpoints(isize);
 
@@ -501,10 +614,11 @@ impl IMMNotificationClient_Impl for Endpoints_Impl {
     fn OnDeviceRemoved(&self, _: &PCWSTR) -> windows::core::Result<()> {
         Ok(())
     }
-    // The volume keys and the taskbar act on the console role of the default output.
+    // The volume keys and the taskbar act on the console role of the default output; the microphone's mute likewise.
     fn OnDefaultDeviceChanged(&self, flow: EDataFlow, role: ERole, _: &PCWSTR) -> windows::core::Result<()> {
-        if flow == eRender && role == eConsole {
-            let _ = unsafe { PostMessageW(Some(HWND(self.0 as _)), WM_VOLDEV, WPARAM(0), LPARAM(0)) };
+        let msg = if flow == eRender { WM_VOLDEV } else if flow == eCapture { WM_MICDEV } else { return Ok(()) };
+        if role == eConsole {
+            let _ = unsafe { PostMessageW(Some(HWND(self.0 as _)), msg, WPARAM(0), LPARAM(0)) };
         }
         Ok(())
     }
@@ -639,28 +753,81 @@ unsafe fn node_prop<T: Default>(node: u32, key: &DEVPROPKEY, kind: DEVPROPTYPE) 
 /// Volume and mute in percent, as the taskbar shows them.
 type Level = (u8, bool);
 
-/// The default output's volume callback; returns its endpoint (kept to unregister) and the level now, the baseline.
-unsafe fn watch_volume(devices: &IMMDeviceEnumerator, client: &IAudioEndpointVolumeCallback) -> Option<(IAudioEndpointVolume, Level)> {
+/// The volume callback of the default output (`eRender`) or microphone (`eCapture`); returns its endpoint (kept to unregister) and the
+/// level now, the baseline.
+unsafe fn watch_level(devices: &IMMDeviceEnumerator, flow: EDataFlow, client: &IAudioEndpointVolumeCallback) -> Option<(IAudioEndpointVolume, Level)> {
     unsafe {
-        // No output device at all is not an error: the next default change registers.
-        let endpoint: IAudioEndpointVolume = devices.GetDefaultAudioEndpoint(eRender, eConsole).and_then(|d| d.Activate(CLSCTX_ALL, None)).ok()?;
+        // No such device at all is not an error: the next default change registers.
+        let endpoint: IAudioEndpointVolume = devices.GetDefaultAudioEndpoint(flow, eConsole).and_then(|d| d.Activate(CLSCTX_ALL, None)).ok()?;
         endpoint.RegisterControlChangeNotify(client).inspect_err(|e| eprintln!("sysevents: volume notification failed: {e}")).ok()?;
         let now = (percent(endpoint.GetMasterVolumeLevelScalar().unwrap_or(0.0)), endpoint.GetMute().is_ok_and(|m| m.as_bool()));
         Some((endpoint, now))
     }
 }
 
-/// Runs on an audio service thread: it only posts the new level to the loop.
+/// Runs on an audio service thread: it only posts the new level to the loop as its message (WM_VOL for the output, WM_MIC for the
+/// microphone).
 #[implement(IAudioEndpointVolumeCallback)]
-struct VolumeWatch(isize);
+struct LevelWatch(isize, u32);
 
-impl IAudioEndpointVolumeCallback_Impl for VolumeWatch_Impl {
+impl IAudioEndpointVolumeCallback_Impl for LevelWatch_Impl {
     fn OnNotify(&self, data: *mut AUDIO_VOLUME_NOTIFICATION_DATA) -> windows::core::Result<()> {
         let Some(d) = (unsafe { data.as_ref() }) else { return Ok(()) };
         let flags = d.bMuted.as_bool() as isize | ((d.guidEventContext == crate::controls::OWN_CHANGE) as isize) << 1;
-        let _ = unsafe { PostMessageW(Some(HWND(self.0 as _)), WM_VOL, WPARAM(percent(d.fMasterVolume) as usize), LPARAM(flags)) };
+        let _ = unsafe { PostMessageW(Some(HWND(self.0 as _)), self.1, WPARAM(percent(d.fMasterVolume) as usize), LPARAM(flags)) };
         Ok(())
     }
+}
+
+/// The default output: its id, its name as the sound menu shows it, and what kind of device it is (`form_name`).
+struct Output {
+    id: String,
+    name: String,
+    form: &'static str,
+}
+
+/// PKEY_AudioEndpoint_FormFactor, defined here so one key does not need the FunctionDiscovery feature.
+const FORM_FACTOR: PROPERTYKEY = PROPERTYKEY { fmtid: GUID::from_u128(0x1da5d803_d492_4edd_8c23_e0c0ffee7f0e), pid: 0 };
+
+fn default_output(devices: &IMMDeviceEnumerator) -> Option<Output> {
+    unsafe {
+        let device = devices.GetDefaultAudioEndpoint(eRender, eConsole).ok()?;
+        let id = crate::controls::take(device.GetId().ok()?)?;
+        let store = device.OpenPropertyStore(STGM_READ).ok();
+        let value = |key: &PROPERTYKEY| store.as_ref().and_then(|s| s.GetValue(key).ok());
+        let name = value(&crate::controls::FRIENDLY_NAME).and_then(|v| PropVariantToStringAlloc(&v).ok()).and_then(|p| crate::controls::take(p));
+        let form = value(&FORM_FACTOR).and_then(|v| PropVariantToUInt32(&v).ok());
+        Some(Output { id, name: name.unwrap_or_default(), form: form_name(form) })
+    }
+}
+
+/// The endpoint's EndpointFormFactor as the alert's icon: headphones and headsets, speakers, a monitor's speakers over HDMI or
+/// DisplayPort, anything else.
+fn form_name(form: Option<u32>) -> &'static str {
+    match form {
+        Some(3 | 5) => "headphones",
+        Some(1) => "speakers",
+        Some(9) => "display",
+        _ => "other",
+    }
+}
+
+/// Windows' callback thread: it only tells the loop the effective power mode now.
+unsafe extern "system" fn mode_changed(mode: EFFECTIVE_POWER_MODE, context: *const c_void) {
+    let _ = unsafe { PostMessageW(Some(HWND(context as _)), WM_MODE, WPARAM(mode.0 as usize), LPARAM(0)) };
+}
+
+/// The power mode the user chose, from Windows' effective one: 1 best power efficiency, 2 balanced, 4 best performance (high, 3, is
+/// told as that too). Energy saver (0), game mode (5) and mixed reality (6) pass over it and leave it as it was, so they say nothing.
+/// The first reading is the baseline; a change gives the new mode.
+fn user_mode(last: &mut Option<i32>, effective: i32) -> Option<i32> {
+    let mode = match effective {
+        1 | 2 => effective,
+        3 | 4 => 4,
+        _ => return None,
+    };
+    let before = last.replace(mode)?;
+    (before != mode).then_some(mode)
 }
 
 /// A scalar 0..1 as the whole percent Windows shows.
@@ -682,15 +849,18 @@ pub fn emit_level(app: &AppHandle, kind: &str, level: u8, muted: bool) {
 }
 
 /// From the settings: external monitors are read over DDC/CI only while the Brightness alert is on, Caps Lock and Num Lock only
-/// while theirs is on and can show, Insert likewise with its own, the Bluetooth watcher and the volume callback only while their alerts are, and the Windows
-/// indicator is hidden only while the frontend says Crest's HUD replaces it (`osd_armed`: the option is on, even if it is not hiding just now).
+/// while theirs is on and can show, Insert likewise with its own, Do Not Disturb likewise, the Bluetooth watcher and the volume and
+/// microphone callbacks only while their alerts are, and the Windows indicator is hidden only while the frontend says Crest's HUD
+/// replaces it (`osd_armed`: the option is on, even if it is not hiding just now).
 #[tauri::command]
-pub fn status_configure(app: AppHandle, ddc: bool, locks: bool, insert: bool, bt: bool, volume: bool, hide_osd: bool, osd_armed: bool) {
+#[allow(clippy::too_many_arguments)]
+pub fn status_configure(app: AppHandle, ddc: bool, locks: bool, insert: bool, bt: bool, volume: bool, mic: bool, focus: bool, hide_osd: bool, osd_armed: bool) {
     crate::brightness::set_ddc(ddc);
     INSERT_ON.store(insert, Ordering::SeqCst);
     watch_locks(&app, locks || insert);
+    watch_focus(&app, focus);
     crate::osd::set(hide_osd, osd_armed);
-    SOURCES.store(if bt { SRC_BT } else { 0 } | if volume { SRC_VOLUME } else { 0 }, Ordering::SeqCst);
+    SOURCES.store(if bt { SRC_BT } else { 0 } | if volume { SRC_VOLUME } else { 0 } | if mic { SRC_MIC } else { 0 }, Ordering::SeqCst);
     let h = LOOP.load(Ordering::SeqCst);
     if h != 0 {
         let _ = unsafe { PostMessageW(Some(HWND(h as _)), WM_SOURCES, WPARAM(0), LPARAM(0)) };
@@ -765,9 +935,138 @@ fn insert_pressed(last: &mut Option<Insert>, now: Insert) -> bool {
     before.0 != now.0 && !before.1 && !now.1
 }
 
+const FOCUS_POLL: Duration = Duration::from_millis(500);
+/// The first readings after the poll starts only set the baseline: it also starts as a fullscreen app ends, for which Windows may
+/// have switched Do Not Disturb on by itself and switches it off again just then.
+const FOCUS_SETTLE: Duration = Duration::from_secs(3);
+static FOCUS_ON: AtomicBool = AtomicBool::new(false);
+/// Bumped on every switch, as `LOCKS_RUN`.
+static FOCUS_RUN: AtomicUsize = AtomicUsize::new(0);
+
+/// A focus session running, and Do Not Disturb on.
+type FocusNow = (bool, bool);
+
+fn watch_focus(app: &AppHandle, on: bool) {
+    if FOCUS_ON.swap(on, Ordering::SeqCst) == on {
+        return;
+    }
+    let run = FOCUS_RUN.fetch_add(1, Ordering::SeqCst) + 1;
+    if !on {
+        return;
+    }
+    let app = app.clone();
+    thread::spawn(move || {
+        // The focus session is WinRT.
+        let _ = unsafe { CoInitializeEx(None, COINIT_MULTITHREADED) };
+        let manager = crate::controls::sessions();
+        let (mut last, started) = (None, Instant::now());
+        while FOCUS_RUN.load(Ordering::SeqCst) == run {
+            if crate::standby::asleep() {
+                // What changed while the screen was off is a new baseline, not a change.
+                last = None;
+            } else {
+                let now = crate::controls::focus_now(manager.as_ref());
+                // A change switched in Crest's Overview, whose switch shows it, only moves the baseline.
+                if started.elapsed() < FOCUS_SETTLE {
+                    last = Some(now);
+                } else if let Some((on, focus)) = focus_change(&mut last, now).filter(|_| !is_own(Own::Focus)) {
+                    let _ = app.emit("status://focus", serde_json::json!({ "on": on, "focus": focus }));
+                }
+            }
+            thread::sleep(FOCUS_POLL);
+        }
+    });
+}
+
+/// Do Not Disturb or a focus session went on or off: `on` either of them, `focus` the session, the one starting or the one that ended.
+/// The first reading is the baseline; one going on while the other is (a session that brings Do Not Disturb) changes nothing.
+fn focus_change(last: &mut Option<FocusNow>, now: FocusNow) -> Option<(bool, bool)> {
+    let before = last.replace(now)?;
+    let (was, is) = (before.0 || before.1, now.0 || now.1);
+    (was != is).then_some((is, if is { now.0 } else { before.0 }))
+}
+
+/// Airplane mode as Settings and the radio switch keep it: 1 on, 0 off.
+const RADIO_STATE: PCWSTR = w!(r"SYSTEM\CurrentControlSet\Control\RadioManagement\SystemRadioState");
+
+/// Airplane mode has no documented change event: a thread waits on its registry key for the app's lifetime and tells each change. The
+/// state at start is the baseline.
+fn watch_airplane(app: AppHandle) {
+    thread::spawn(move || unsafe {
+        let mut key = HKEY::default();
+        if let Err(e) = RegOpenKeyExW(HKEY_LOCAL_MACHINE, RADIO_STATE, None, KEY_NOTIFY | KEY_QUERY_VALUE, &mut key).ok() {
+            return eprintln!("sysevents: airplane mode key failed: {e}");
+        }
+        let mut last = airplane(key);
+        loop {
+            // Waits here until the key changes.
+            if let Err(e) = RegNotifyChangeKeyValue(key, false, REG_NOTIFY_CHANGE_LAST_SET, None, false).ok() {
+                return eprintln!("sysevents: airplane mode notification failed: {e}");
+            }
+            let now = airplane(key);
+            if now.is_some() && now != last {
+                if last.is_some() {
+                    let _ = app.emit("status://airplane", serde_json::json!({ "on": now }));
+                }
+                last = now;
+            }
+        }
+    });
+}
+
+/// The key's default value, a DWORD; None when it is not one.
+unsafe fn airplane(key: HKEY) -> Option<bool> {
+    let (mut kind, mut value, mut size) = (REG_VALUE_TYPE::default(), 0u32, 4u32);
+    unsafe { RegQueryValueExW(key, PCWSTR::null(), None, Some(&mut kind), Some(&mut value as *mut u32 as *mut u8), Some(&mut size)) }.ok().ok()?;
+    (kind == REG_DWORD && size == 4).then_some(value != 0)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn the_output_icon_follows_the_form_factor() {
+        assert_eq!(form_name(Some(3)), "headphones");
+        assert_eq!(form_name(Some(5)), "headphones");
+        assert_eq!(form_name(Some(1)), "speakers");
+        assert_eq!(form_name(Some(9)), "display");
+        assert_eq!(form_name(Some(2)), "other");
+        assert_eq!(form_name(None), "other");
+    }
+
+    #[test]
+    fn the_power_mode_tells_only_the_chosen_one() {
+        let mut last = None;
+        // Game mode first says nothing and is no baseline; balanced is.
+        assert_eq!(user_mode(&mut last, 5), None);
+        assert_eq!(user_mode(&mut last, 2), None);
+        assert_eq!(user_mode(&mut last, 2), None);
+        assert_eq!(user_mode(&mut last, 4), Some(4));
+        // High performance is best performance too.
+        assert_eq!(user_mode(&mut last, 3), None);
+        // Energy saver passes over and comes back to the same mode.
+        assert_eq!(user_mode(&mut last, 0), None);
+        assert_eq!(user_mode(&mut last, 4), None);
+        assert_eq!(user_mode(&mut last, 1), Some(1));
+        assert_eq!(last, Some(1));
+    }
+
+    #[test]
+    fn focus_tells_on_and_off_and_which_one() {
+        let mut last = None;
+        assert_eq!(focus_change(&mut last, (false, false)), None);
+        // Do Not Disturb alone.
+        assert_eq!(focus_change(&mut last, (false, true)), Some((true, false)));
+        assert_eq!(focus_change(&mut last, (false, false)), Some((false, false)));
+        // A session that brings Do Not Disturb a reading later is one change.
+        assert_eq!(focus_change(&mut last, (true, false)), Some((true, true)));
+        assert_eq!(focus_change(&mut last, (true, true)), None);
+        assert_eq!(focus_change(&mut last, (false, false)), Some((false, true)));
+        // Do Not Disturb kept after the session: still on.
+        assert_eq!(focus_change(&mut last, (true, true)), Some((true, true)));
+        assert_eq!(focus_change(&mut last, (false, true)), None);
+    }
 
     #[test]
     fn percent_rounds_and_clamps() {

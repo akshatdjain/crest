@@ -249,6 +249,12 @@ test("the live glass's switch: off by default, on only when saved as true", () =
   assert.equal(normalizeThemeSettings({ glassLive: "true" }).glassLive, false);
 });
 
+test("status alerts as glass: on by default, off only when saved as false", () => {
+  assert.equal(normalizeThemeSettings({}).glassAlerts, true);
+  assert.equal(normalizeThemeSettings({ glassAlerts: false }).glassAlerts, false);
+  assert.equal(normalizeThemeSettings({ glassAlerts: "false" }).glassAlerts, true);
+});
+
 const veilOf = (t: ThemeFile) => parseColor(resolveTheme(t).vars["--glass-tint"])!;
 const GLASS_STATUS = ["--glass-orange", "--glass-red", "--glass-green"];
 const GREYS = Array.from({ length: 256 }, (_, g): Rgba => ({ r: g, g, b: g, a: 1 }));
@@ -314,10 +320,11 @@ test("glass status colours keep 4.5:1 over the veil on black and on white", () =
 
 test("glass look: defaults, held to the sliders' ends and whole, anything else back to the default", () => {
   const look = (s: ReturnType<typeof normalizeThemeSettings>) => [s.glassTransparency, s.glassRefraction, s.glassFrost, s.glassRim];
-  assert.deepEqual(look(normalizeThemeSettings({})), [0, 100, 100, 100]);
+  // Glass first switched on: 5% through with Dark, a softer bend, no frost, the full rim.
+  assert.deepEqual(look(normalizeThemeSettings({})), [-75, 80, 0, 100]);
   assert.deepEqual(look(normalizeThemeSettings({ glassTransparency: 250, glassRefraction: -5, glassFrost: 33.4, glassRim: "150" })), [100, 0, 33, 100]);
   assert.equal(normalizeThemeSettings({ glassTransparency: -300 }).glassTransparency, -100);
-  assert.equal(normalizeThemeSettings({ glassFrost: NaN }).glassFrost, 100);
+  assert.equal(normalizeThemeSettings({ glassFrost: NaN }).glassFrost, 0);
 });
 
 test("Transparency: 0 is the safe veil, -100 opaque, 100 the clearest", () => {

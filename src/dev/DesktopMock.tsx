@@ -67,6 +67,12 @@ export function DesktopMock() {
         <DevButton onClick={mockStatus.volume}>Volume</DevButton>
         <DevButton onClick={mockStatus.brightness}>Brightness</DevButton>
         <DevButton onClick={mockStatus.mic}>Mic mute</DevButton>
+        <DevButton onClick={mockStatus.output}>Output</DevButton>
+        <DevButton onClick={mockStatus.focus}>DND</DevButton>
+        <DevButton onClick={mockStatus.saver}>Saver</DevButton>
+        <DevButton onClick={mockStatus.mode}>Power mode</DevButton>
+        <DevButton onClick={mockStatus.airplane}>Airplane</DevButton>
+        <DevButton onClick={mockStatus.display}>Monitor</DevButton>
         <DevButton onClick={() => setLight((l) => !l)}>{light ? "Dark" : "Light"}</DevButton>
       </div>}
 

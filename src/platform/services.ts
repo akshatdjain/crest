@@ -2,7 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Channel } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { isMac, isNative } from "./native";
-import type { BluetoothEvent, LevelEvent, LockEvent, MicEvent, PowerState } from "../notch/row/status";
+import type { BluetoothEvent, DisplayEvent, FocusEvent, LevelEvent, LockEvent, MicEvent, ModeEvent, OutputEvent, PowerState } from "../notch/row/status";
 import type { LaunchPlan, ShellInfo } from "../features/terminal/shell";
 import type { TokenReport } from "../features/usage/tokens";
 import type { BatteryRaw } from "../features/system/battery";
@@ -523,6 +523,13 @@ export const display = {
     if (isNative) void invoke("mirror_picture_set", { picture, rect });
   },
   fullscreen: (): Promise<boolean> => (isNative ? invoke<boolean>("display_fullscreen") : Promise.resolve(false)),
+  /**
+   * While an indicator shows everywhere (status alerts), brings out the window that a rule or the hide shortcut keeps hidden, without
+   * taking the focus or the pointer; false hides it again. Nothing happens while the window shows anyway.
+   */
+  alert: (on: boolean) => {
+    if (isNative && !isMac) void invoke("display_alert", { on }).catch(() => {});
+  },
   /** true while an app covers the notch's monitor in fullscreen. */
   onFullscreen: (handler: (on: boolean) => void): (() => void) => {
     if (!isNative) return () => {};
@@ -535,7 +542,10 @@ export const display = {
 
 /** State at start, so what is already true (charger in, headphones on) does not alert. */
 export interface StatusSeed { power: PowerState | null; online: boolean | null; devices: string[] }
-export interface StatusHandlers { seed(s: StatusSeed): void; power(s: PowerState): void; net(online: boolean): void; bt(e: BluetoothEvent): void; level(e: LevelEvent): void; lock(e: LockEvent): void; mic(e: MicEvent): void }
+export interface StatusHandlers {
+  seed(s: StatusSeed): void; power(s: PowerState): void; net(online: boolean): void; bt(e: BluetoothEvent): void; level(e: LevelEvent): void; lock(e: LockEvent): void; mic(e: MicEvent): void;
+  output(e: OutputEvent): void; focus(e: FocusEvent): void; mode(e: ModeEvent): void; airplane(on: boolean): void; display(e: DisplayEvent): void;
+}
 
 export const status = {
   seed: (): Promise<StatusSeed> => (isNative ? invoke<StatusSeed>("status_seed") : Promise.resolve(mockStatus.seed())),
@@ -549,12 +559,17 @@ export const status = {
       listen<LevelEvent>("status://level", (e) => h.level(e.payload)),
       listen<LockEvent>("status://lock", (e) => h.lock(e.payload)),
       listen<MicEvent>("status://mic", (e) => h.mic(e.payload)),
+      listen<OutputEvent>("status://output", (e) => h.output(e.payload)),
+      listen<FocusEvent>("status://focus", (e) => h.focus(e.payload)),
+      listen<ModeEvent>("status://mode", (e) => h.mode(e.payload)),
+      listen<{ on: boolean }>("status://airplane", (e) => h.airplane(e.payload.on)),
+      listen<DisplayEvent>("status://display", (e) => h.display(e.payload)),
     ];
     return () => offs.forEach((off) => void off.then((f) => f()));
   },
-  /** `ddc`: read external monitors over DDC/CI (the Brightness alert is on); `locks`: watch Caps Lock and Num Lock; `insert`: watch Insert presses; `bt`, `volume`: keep the Bluetooth watcher and the volume callback;
-   *  `hideOsd`: hide the Windows indicator now (status.ts osdHidden); `osdArmed`: the option is in force, also while it is not hiding. */
-  configure: (c: { ddc: boolean; locks: boolean; insert: boolean; bt: boolean; volume: boolean; hideOsd: boolean; osdArmed: boolean }) => {
+  /** `ddc`: read external monitors over DDC/CI (the Brightness alert is on); `locks`: watch Caps Lock and Num Lock; `insert`: watch Insert presses; `bt`, `volume`, `mic`: keep the Bluetooth watcher and the volume and microphone callbacks;
+   *  `focus`: read Do not disturb; `hideOsd`: hide the Windows indicator now (status.ts osdHidden); `osdArmed`: the option is in force, also while it is not hiding. */
+  configure: (c: { ddc: boolean; locks: boolean; insert: boolean; bt: boolean; volume: boolean; mic: boolean; focus: boolean; hideOsd: boolean; osdArmed: boolean }) => {
     if (isNative) void invoke("status_configure", c);
   },
 };
@@ -607,7 +622,8 @@ const MOCK_BT = ["Audio.Headphone", "Input.Mouse", "Input.Keyboard", "Input.Gami
 
 /** Browser: each dev button toggles one source. Unplugging drops the mock percent by 9, so the low tones show too. */
 export const mockStatus = (() => {
-  let power: PowerState = { ac: true, percent: 64, battery: true, charging: true }, online = true, buds = false, volume = 40, bright = 70, kind = 0, caps = false;
+  let power: PowerState = { ac: true, percent: 64, battery: true, charging: true, saver: false }, online = true, buds = false, volume = 40, bright = 70, kind = 0, caps = false;
+  let output = 0, dnd = false, mode = 2, airplane = false, monitor = false;
   const listeners = new Set<StatusHandlers>();
   return {
     seed: (): StatusSeed => ({ power, online, devices: buds ? ["Buds"] : [] }),
@@ -649,6 +665,35 @@ export const mockStatus = (() => {
     mic() {
       mockQuick.micMuted = !mockQuick.micMuted;
       listeners.forEach((h) => h.mic({ muted: mockQuick.micMuted === true }));
+    },
+    /** Energy saver flips with each call; the glass turns off with it, as on Windows. */
+    saver() {
+      power = { ...power, saver: !power.saver };
+      listeners.forEach((h) => h.power(power));
+    },
+    /** Each call is the next output: headphones, speakers, a monitor's speakers. */
+    output() {
+      const all: OutputEvent[] = [{ name: "Headphones (WH-1000XM5)", form: "headphones" }, { name: "Speakers (Realtek(R) Audio)", form: "speakers" }, { name: "DELL U2720Q (NVIDIA High Definition Audio)", form: "display" }];
+      const next = all[output++ % all.length];
+      listeners.forEach((h) => h.output(next));
+    },
+    focus() {
+      dnd = !dnd;
+      listeners.forEach((h) => h.focus({ on: dnd, focus: false }));
+    },
+    /** Best power efficiency, balanced, best performance, round. */
+    mode() {
+      mode = mode === 1 ? 2 : mode === 2 ? 4 : 1;
+      listeners.forEach((h) => h.mode({ mode }));
+    },
+    airplane() {
+      airplane = !airplane;
+      listeners.forEach((h) => h.airplane(airplane));
+    },
+    /** A monitor comes and goes. */
+    display() {
+      monitor = !monitor;
+      listeners.forEach((h) => h.display({ name: "DELL U2720Q", hz: monitor ? 60 : null, connected: monitor, builtin: false }));
     },
   };
 })();
