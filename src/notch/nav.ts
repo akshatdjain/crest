@@ -2,7 +2,7 @@ import { createStore } from "../lib/store";
 import { windowKind } from "../lib/windowKind";
 import { isNative, settingsWindow } from "../platform/native";
 import { navRoute } from "./navRoute";
-import { notchOpen, stayUntilVisit } from "./useNotchState";
+import { notchOpen, pinned, stayUntilVisit } from "./useNotchState";
 
 /**
  * Which tool is open? Global so tools can link to each other
@@ -14,8 +14,12 @@ export const nav = createStore<{ tabId: string; section: string | null }>({ tabI
 export function navigate(tabId: string, section: string | null = null) {
   const route = navRoute(tabId, windowKind, isNative);
   // The settings open in their window; the notch keeps the tool it shows. Inside the window, the section reaches the page
-  // through Rust (settings/window/main.tsx).
-  if (route === "settings-window") return void settingsWindow.open(section);
+  // through Rust (settings/window/main.tsx). Unpinned first: the notch closes when the window takes the focus, and a pinned
+  // notch ignores that.
+  if (route === "settings-window") {
+    pinned.set(false);
+    return void settingsWindow.open(section);
+  }
   // A tool asked for from another window (a link in the settings) opens in the notch.
   if (route === "notch") return void settingsWindow.notchOpen(tabId);
   // Open, another tool may be smaller and leave the pointer outside it: that must not close the notch (#29).
