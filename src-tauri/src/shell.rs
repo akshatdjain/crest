@@ -261,9 +261,10 @@ pub fn notch_open(tab: Option<String>, app: AppHandle) {
     open(&app, tab.as_deref());
 }
 
-/// A second launch of Crest brings back a Crest hidden with the shortcut and opens the settings window.
+/// A second launch of Crest brings back a Crest hidden with the shortcut and opens the settings window. The notch does
+/// not open, so a "hide" rule keeps hiding it (display::bring_back, not unhide).
 pub fn second_launch(app: &AppHandle) {
-    display::unhide(app);
+    display::bring_back(app);
     crate::settings_window::open_settings(app, None);
 }
 
