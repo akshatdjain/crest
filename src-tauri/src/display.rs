@@ -276,8 +276,23 @@ pub fn display_alert(app: AppHandle, on: bool) {
             show_quietly(&window);
         }
     } else if state.revealed.swap(false, Ordering::Relaxed) && state.hidden.load(Ordering::Relaxed) {
-        let _ = window.hide();
+        hide_quietly(&window);
     }
+}
+
+/// Hidden the way `show_quietly` showed it. tao keeps its own visible flag, which that raw show never set: its hide() would find the
+/// window already hidden and do nothing, leaving the notch over the game or the hidden state until the reason to hide changed.
+#[cfg(windows)]
+fn hide_quietly(window: &WebviewWindow) {
+    use windows::Win32::UI::WindowsAndMessaging::{ShowWindow, SW_HIDE};
+    if let Ok(hwnd) = window.hwnd() {
+        let _ = unsafe { ShowWindow(hwnd, SW_HIDE) };
+    }
+}
+
+#[cfg(not(windows))]
+fn hide_quietly(window: &WebviewWindow) {
+    let _ = window.hide();
 }
 
 /// Shown without activation and click-through, on top of the other topmost windows: an indicator over the app in front.
