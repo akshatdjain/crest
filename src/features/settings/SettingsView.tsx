@@ -88,7 +88,6 @@ import { keycaps } from "../window/hotkeys";
 import { hotkeyStatus } from "../window/store";
 import { TradingSettings } from "../trading/TradingSettings";
 import { detectPlace } from "../weather/store";
-import { focusMode, setFocusMode } from "../../notch/focus";
 import { checkForUpdate, installUpdate, update } from "../../lib/update";
 import { across } from "../../notch/edge";
 import { EdgeSettings } from "../../notch/EdgeSettings";
@@ -814,7 +813,6 @@ const statusAlerts: [keyof ClosedSettings["statusAlerts"], string, string][] = [
 function Display() {
   const s = settings.use();
   const d = s.display;
-  const focus = focusMode.use();
   const fpsError = fps.use().error;
   // The unlock row shows once the counter has answered "no-admin", so ask while gaming mode is on, not only when a game is up.
   useFpsPolling(!isMac && s.gaming.mode !== "off");
@@ -884,24 +882,26 @@ function Display() {
           ))}
         </>
       )}
-      <Row label={t("Fokus-Modus")} hint={t("Klicks gehen durch. 3× schnell auf die Notch klicken schaltet um, oder im Tray-Menü.")}>
-        <Switch label={t("Fokus-Modus")} checked={focus} onChange={setFocusMode} />
+      <Row label={t("Fokus-Modus mit drei Klicks")} hint={t("Drei schnelle Klicks auf die geschlossene Notch machen sie halb durchsichtig oder zur Linie und lassen Klicks durch. Drei weitere Klicks, das Öffnen per Tastenkürzel oder ein Neustart holen sie zurück.")}>
+        <Switch label={t("Fokus-Modus mit drei Klicks")} checked={d.focusClicks} onChange={(focusClicks) => updateSettings((cur) => ({ display: { ...cur.display, focusClicks } }))} />
       </Row>
-      <Row
-        label={t("Fokus-Darstellung")}
-        hint={d.focusStyle === "line" ? t("Nur eine dünne Linie am Rand, ohne Musik und Co.") : t("Halb durchsichtig, Musik und Co. bleiben sichtbar")}
-      >
-        <Segmented
-          id="focus-style"
-          size="sm"
-          value={d.focusStyle}
-          onChange={(focusStyle) => updateSettings((cur) => ({ display: { ...cur.display, focusStyle } }))}
-          options={[
-            { value: "dim", label: t("Durchsichtig") },
-            { value: "line", label: t("Linie") },
-          ]}
-        />
-      </Row>
+      {d.focusClicks && (
+        <Row
+          label={t("Fokus-Darstellung")}
+          hint={d.focusStyle === "line" ? t("Nur eine dünne Linie am Rand, ohne Musik und Co.") : t("Halb durchsichtig, Musik und Co. bleiben sichtbar")}
+        >
+          <Segmented
+            id="focus-style"
+            size="sm"
+            value={d.focusStyle}
+            onChange={(focusStyle) => updateSettings((cur) => ({ display: { ...cur.display, focusStyle } }))}
+            options={[
+              { value: "dim", label: t("Durchsichtig") },
+              { value: "line", label: t("Linie") },
+            ]}
+          />
+        </Row>
+      )}
       {/* Hardware readings and FPS have no Mac backend yet. */}
       {!isMac && (
         <>

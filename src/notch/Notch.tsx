@@ -7,7 +7,8 @@ import { isMac, isNative, keyboardFocus, onNativeBlur, onNativeHover, onNativeHo
 import { PrivacyDots, usePrivacyDots } from "../features/privacy/PrivacyDots";
 import { privacy, usePresenting } from "../features/privacy/store";
 import { fullscreen, useGamingLive } from "../features/system/gaming";
-import { FOCUS_CLICKS, focusMode, setFocusMode } from "./focus";
+import { focusMode, setFocusMode } from "./focus";
+import { togglesFocus } from "./focusRules";
 import { dragArea, edgeOf, placementKey, useDragToMove, viewLine, windowLength, windowY } from "./drag";
 import { useLiveActivity } from "./live";
 import { CompactRow } from "./row/CompactRow";
@@ -350,11 +351,19 @@ export function Notch() {
   useEffect(() => {
     if (focus) close();
   }, [focus, close]);
+  // Opened on purpose in focus mode (a shortcut, the tray, a card's link): the panel would ignore the pointer, so focus mode ends.
+  useEffect(() => {
+    if (focus && status === "open") setFocusMode(false);
+  }, [focus, status]);
 
-  // Three quick clicks toggle focus mode (in the browser also off; natively Rust counts).
+  // Three quick clicks toggle focus mode while its switch is on (in the browser also off; natively Rust counts those).
   const onClick = (e: React.MouseEvent) => {
     if (drag.moved() || editing) return;
-    if (e.detail >= FOCUS_CLICKS && !isInteractive(e.target)) return setFocusMode(!focus);
+    if (togglesFocus(e.detail, displaySettings.focusClicks, isInteractive(e.target))) {
+      // Closed first: the first of the clicks may have opened the panel, and an open panel ends focus mode (above).
+      if (!focus) close();
+      return setFocusMode(!focus);
+    }
     if (focus || status === "open") return;
     // A click on a part of the closed row opens its tool (a click elsewhere, as usual).
     const part = partTarget(e);
