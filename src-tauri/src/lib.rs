@@ -265,6 +265,7 @@ pub fn run() {
             hit_test::set_hit_rect,
             hit_test::set_pet_rect,
             hit_test::set_pinned,
+            hit_test::set_passthrough,
             idle::idle_seconds,
             media::media_get,
             media::media_control,

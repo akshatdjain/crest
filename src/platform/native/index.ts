@@ -167,7 +167,19 @@ export function onSharedBuffer(use: (meta: unknown, data: ArrayBuffer) => void):
   return () => host.removeEventListener("sharedbufferreceived", listener);
 }
 
+/** Focus mode: the window is fully click-through (Rust only counts the clicks that leave it). */
+export function setPassthrough(on: boolean) {
+  if (isNative) void invoke("set_passthrough", { on });
+}
+
 /** The tray menu's texts in the interface language (Rust starts in English). */
 export function setTrayTexts(texts: { open: string; settings: string; autostart: string; quit: string }) {
   if (isNative) void invoke("tray_texts", { texts });
+}
+
+/** Three quick clicks on the notch in focus mode. */
+export function onFocusExit(handler: () => void): () => void {
+  if (!isNative) return () => {};
+  const off = listen("notch://focus-exit", handler);
+  return () => void off.then((f) => f());
 }

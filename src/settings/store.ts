@@ -56,8 +56,12 @@ export interface Settings {
     /** "chosen": on `monitor`; "follow": where the pointer is while closed; "all": a closed copy on every other monitor (src/notch/monitor.ts). */
     monitorMode: MonitorMode;
     offset: number;
+    /** Focus mode look: half transparent (as before) or shrunk to a thin line at the edge. */
+    focusStyle: "dim" | "line";
+    /** Three quick clicks on the notch turn focus mode on and off; off by default (src/notch/focusRules.ts). */
+    focusClicks: boolean;
     /**
-     * Closed look: the notch, the floating capsule, or a thin line (no
+     * Closed look outside focus mode: the notch, the floating capsule, or a thin line (no
      * music etc.; only a finished timer opens it into the notch until dismissed). Hover and
      * click work as usual.
      */
@@ -182,7 +186,7 @@ const defaults: Settings = {
     },
   },
   weather: null,
-  display: { visibility: "always", monitor: null, monitorMode: "chosen", offset: 0, idleStyle: "notch", y: 5 },
+  display: { visibility: "always", monitor: null, monitorMode: "chosen", offset: 0, focusStyle: "dim", focusClicks: false, idleStyle: "notch", y: 5 },
   closed: CLOSED_DEFAULTS,
   closedSize: CLOSED_SIZE_DEFAULTS,
   gaming: { mode: "off" },
@@ -290,7 +294,12 @@ function migrate({ language: _old, ...s }: Settings & { language?: unknown }): S
     usage: { ...defaults.usage, ...s.usage },
     aiUsage: normalizeCards(s.aiUsage),
     // A saved y that is not a finite number (null, a string) would place the capsule nowhere; a Mac has no Follow or All modes (an older build offered them).
-    display: { ...defaults.display, ...s.display, y: fitCapsuleTop(s.display?.y), monitorMode: isMac ? "chosen" : normalizeMonitorMode(s.display?.monitorMode) },
+    display: {
+      ...defaults.display,
+      ...s.display,
+      focusStyle: s.display?.focusStyle === "line" ? "line" : "dim",
+      focusClicks: s.display?.focusClicks === true,
+      y: fitCapsuleTop(s.display?.y), monitorMode: isMac ? "chosen" : normalizeMonitorMode(s.display?.monitorMode) },
     gaming: { ...defaults.gaming, ...s.gaming },
     discord: { ...defaults.discord, ...s.discord },
     alarm: { ...defaults.alarm, ...s.alarm },

@@ -55,7 +55,7 @@ const TONE: Record<StatusAlert["tone"], string> = { normal: "var(--color-label)"
 /**
  * The notice as an icon on its own line (the notice text is too wide for a column), by the same priority as NoticeLayer: a finished
  * timer's alarm, which dismisses it (after a running recording: its dot, time, pause and stop); the status alert's icon; a live notice's app logo; a due to-do's alarm, which opens the To-dos.
- * On the idle line it shows the same ones, a live notice included, as on top. Saved, download, quota, track, calendar and water notices stay off the column.
+ * On the idle line and in dimmed focus mode (`urgentOnly`) it shows the same ones as on top, a live notice included. Saved, download, quota, track, calendar and water notices stay off the column.
  */
 function useNoticeLine(): Line | null {
   const finished = timer.use().finished;
@@ -162,7 +162,7 @@ function useNoticeLine(): Line | null {
  * The closed notch's content on a side edge: the row's parts one below the other, each centred on its own line, in the row's order with
  * the cover first and the privacy dots last, under the notice line if there is one. The song title is left out: a scrolling title does
  * not fit across a column, and neither does a lyric line, the next event or the downloads, so the title's lyric mode and the lyrics-only notch keep the column as it is.
- * Lines that do not fit in the longest notch are dropped from the end. `parts` false (the idle line, opened only by
+ * Lines that do not fit in the longest notch are dropped from the end. `parts` false (the idle line or dimmed focus mode, opened only by
  * an urgent notice) shows the notice line alone and keeps the row's polling off. Reports its length and width, and whether a notice line shows; the shape is that plus
  * its insets and pads. Drawn at the content scale like the row (Notch.tsx): `room` is the longest it gets at its designed size.
  */
