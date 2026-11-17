@@ -1,3 +1,4 @@
+import { askNotch } from "../../lib/tauriTransport";
 import { isNotchWindow } from "../../lib/windowKind";
 import { createStore } from "../../lib/store";
 import { isMac } from "../../platform/native";
@@ -66,6 +67,8 @@ export function presentingNow(): boolean {
 
 /** One switch for both cases: during an auto-detected recording "off" only lasts until it ends. */
 export function togglePresentation() {
+  // The notch knows the recording and the snooze: the settings window asks it.
+  if (!isNotchWindow) return askNotch({ kind: "presentation" });
   const { manual, auto } = settings.get().presentation;
   const { screen } = privacy.get();
   if (isPresenting(manual, auto, screen, snoozed.get())) {

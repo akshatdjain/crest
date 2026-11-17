@@ -1,3 +1,5 @@
+import { askNotch } from "../../lib/tauriTransport";
+import { isNotchWindow } from "../../lib/windowKind";
 import { useEffect } from "react";
 import { createStore } from "../../lib/store";
 import { rowVisible } from "../../notch/row/visibility";
@@ -31,6 +33,11 @@ function enabledIds(): UsageId[] {
 let fetchedKey = "";
 
 export function refreshUsage(): Promise<void> {
+  // The notch fetches and shows the usage: the settings window asks it when a key changes.
+  if (!isNotchWindow) {
+    askNotch({ kind: "refresh", what: "usage" });
+    return Promise.resolve();
+  }
   const call = ++latest, ids = enabledIds();
   fetchedKey = ids.join(",");
   usage.set((u) => ({ ...u, loading: true }));

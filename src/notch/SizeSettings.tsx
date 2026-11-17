@@ -5,7 +5,7 @@ import { toSaved } from "../features/window/panelSize";
 import { Button, Row, Slider } from "../ui/controls";
 import { CAPSULE_TOP_DEFAULT, CLOSED_SIZE_DEFAULTS, LIMITS, type ClosedSize } from "./collapsed";
 import { monitor, monitorMetrics } from "./monitor";
-import { closedEdit } from "./ClosedResize";
+import { editClosedShape } from "./ClosedResize";
 
 /** The sizes each style's rows change; the capsule's distance from the edge is display.y besides. */
 const KEYS: Record<Settings["display"]["idleStyle"], (keyof ClosedSize)[]> = {
@@ -39,7 +39,7 @@ export function SizeSettings() {
       <Row label={t("Größe")} hint={style === "line" ? undefined : t("Der Inhalt wächst mit der Höhe, für mehr Inhalt wird sie von selbst breiter")}>
         <div className="flex shrink-0 gap-2">
           {/* The panel closes onto the closed shape, which shows grips until Done (ClosedResize.tsx). */}
-          <Button onClick={() => closedEdit.set(true)}>{t("Auf der Notch anpassen")}</Button>
+          <Button onClick={editClosedShape}>{t("Auf der Notch anpassen")}</Button>
           <Button disabled={isDefault} onClick={reset}>
             {t("Zurücksetzen")}
           </Button>

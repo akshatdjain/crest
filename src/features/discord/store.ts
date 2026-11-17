@@ -1,3 +1,5 @@
+import { askNotch } from "../../lib/tauriTransport";
+import { isNotchWindow } from "../../lib/windowKind";
 import { createStore } from "../../lib/store";
 import { discord, type DiscordSnapshot } from "../../platform/services";
 import { settings } from "../../settings/store";
@@ -29,6 +31,8 @@ export function startDiscord() {
 
 /** Reconnect (e.g. after saving the client secret). */
 export function reconnectDiscord() {
+  // The notch holds the connection.
+  if (!isNotchWindow) return askNotch({ kind: "refresh", what: "discord" });
   const s = settings.get();
   discord.configure(s.tools.some((x) => x.id === "discord" && x.enabled), s.discord.clientId);
 }

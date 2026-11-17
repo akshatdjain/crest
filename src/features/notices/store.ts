@@ -232,12 +232,9 @@ export function clearHistory() {
   dismissPop();
 }
 
+/** Only writes the rule: the notch drops the notices of an app it hides (startNotices), whichever window set it. */
 export function setAppRule(appId: string, rule: NoticeRule) {
   updateSettings((cur) => ({ notices: { ...cur.notices, rules: setRule(cur.notices.rules, appId, rule) } }));
-  if (rule === "hide") {
-    history.set((list) => removeApp(list, appId));
-    if (popping.get()?.appId.toLowerCase() === appId.toLowerCase()) dismissPop();
-  }
 }
 
 /** Windows refused the access request itself (no prompt); the settings then point to Windows Settings. */
@@ -298,6 +295,20 @@ export function startNotices() {
   };
   apply();
   settings.subscribe(apply);
+
+  // An app hidden here or in the settings window leaves the history and the screen; a newly picked sound file is decoded again.
+  let seen = settings.get().notices;
+  settings.subscribe(() => {
+    const now = settings.get().notices;
+    if (now.soundFile !== seen.soundFile) fileSound = null;
+    if (now.rules !== seen.rules) {
+      for (const app of Object.keys(now.rules).filter((a) => now.rules[a] === "hide" && seen.rules[a] !== "hide")) {
+        history.set((list) => removeApp(list, app));
+        if (popping.get()?.appId.toLowerCase() === app) dismissPop();
+      }
+    }
+    seen = now;
+  });
 }
 
 /** Master switch. Turning it on also shows the history page in the tool bar. */

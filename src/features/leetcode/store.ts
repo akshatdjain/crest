@@ -1,3 +1,5 @@
+import { askNotch } from "../../lib/tauriTransport";
+import { isNotchWindow } from "../../lib/windowKind";
 import { useEffect } from "react";
 import { createStore } from "../../lib/store";
 import { rowVisible } from "../../notch/row/visibility";
@@ -28,6 +30,10 @@ let retry: ReturnType<typeof setTimeout> | null = null;
 let retried = false;
 
 export function refreshLeetcode(force = false): Promise<void> {
+  if (!isNotchWindow) {
+    askNotch({ kind: "refresh", what: "leetcode", force });
+    return Promise.resolve();
+  }
   const call = ++latest,
     user = settings.get().leetcode.user.trim();
   askedUser = user.toLowerCase();

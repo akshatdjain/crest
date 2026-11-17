@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import { followStores, onActions, sendAction, shareStores, type Transport } from "./bridge.ts";
+import { settingsClosedActions } from "./bridgeRules.ts";
 
 /** Both windows on one bus: an emit reaches every handler of its event at once, whatever window it names. */
 function memoryBus() {
@@ -77,4 +78,8 @@ test("only the known actions reach the notch", () => {
   bus.emit("bridge://action", { kind: "deleteEverything" });
   bus.emit("bridge://action", { kind: "refresh", what: "vault" });
   assert.deepEqual(ran, [{ kind: "refresh", what: "github", force: true }]);
+});
+
+test("closing_the_settings_window_resumes_hotkeys", () => {
+  assert.deepEqual(settingsClosedActions(), [{ kind: "pauseHotkeys", on: false }]);
 });

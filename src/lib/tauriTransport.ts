@@ -1,7 +1,7 @@
 import { emit, emitTo } from "@tauri-apps/api/event";
 import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 import { isNative } from "../platform/native";
-import type { Transport } from "./bridge";
+import { sendAction, type BridgeAction, type Transport } from "./bridge";
 
 /*
  * The bridge's transport over Tauri events, between Crest's windows. A listen registers asynchronously: `ready` waits for
@@ -23,3 +23,8 @@ export const tauriTransport: Transport = {
     return () => void off.then((f) => f());
   },
 };
+
+/** From a window other than the notch: asks the notch to do it (src/features/settings/window/shared.ts runs it). */
+export function askNotch(action: BridgeAction) {
+  sendAction(tauriTransport, action);
+}

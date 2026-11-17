@@ -1,3 +1,5 @@
+import { askNotch } from "../../lib/tauriTransport";
+import { isNotchWindow } from "../../lib/windowKind";
 import { useEffect } from "react";
 import { createStore } from "../../lib/store";
 import { fetchCalendar, openMeetingLink, type CalendarData, type CalendarEvent } from "../../platform/services";
@@ -23,6 +25,10 @@ let latest = 0;
 const toolOn = () => settings.get().tools.some((t) => t.id === "calendar" && t.enabled);
 
 export function refreshCalendar(force = false): Promise<void> {
+  if (!isNotchWindow) {
+    askNotch({ kind: "refresh", what: "calendar", force });
+    return Promise.resolve();
+  }
   const call = ++latest;
   const sources = settings.get().calendar.sources.map(({ id, kind, url, user, name, color }) => ({ id, kind, url, user, name, color }));
   calendar.set((c) => ({ ...c, loading: true }));

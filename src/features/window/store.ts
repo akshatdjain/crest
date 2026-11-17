@@ -1,3 +1,5 @@
+import { askNotch } from "../../lib/tauriTransport";
+import { isNotchWindow } from "../../lib/windowKind";
 import { createStore } from "../../lib/store";
 import { isMac } from "../../platform/native";
 import { windowShell, type HotkeyState, type ScreenBehavior } from "../../platform/services";
@@ -28,6 +30,8 @@ let applying: Promise<unknown> = Promise.resolve();
 let paused = false;
 
 export function pauseHotkeys(on: boolean) {
+  // The notch registers the shortcuts: a recording in the settings window pauses them there.
+  if (!isNotchWindow) return askNotch({ kind: "pauseHotkeys", on });
   if (paused === on) return;
   paused = on;
   applyHotkeys();

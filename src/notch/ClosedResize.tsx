@@ -1,3 +1,5 @@
+import { askNotch } from "../lib/tauriTransport";
+import { isNotchWindow } from "../lib/windowKind";
 import { useEffect, useRef } from "react";
 import { Check } from "@phosphor-icons/react";
 import { createStore } from "../lib/store";
@@ -12,6 +14,12 @@ import { viewZoom } from "./viewZoom";
  * Done button just past it. While it is on, the notch neither opens nor moves (Notch.tsx); Done or Esc ends it.
  */
 export const closedEdit = createStore(false);
+
+/** The settings' "Adjust on the notch": the grips show on the notch, also when the settings window asks. */
+export function editClosedShape() {
+  if (!isNotchWindow) return askNotch({ kind: "closedEdit" });
+  closedEdit.set(true);
+}
 /** The sizes while a grip is dragged, drawn at once; saved on release like the sliders' values. */
 export const closedLive = createStore<Partial<ClosedSize> | null>(null);
 

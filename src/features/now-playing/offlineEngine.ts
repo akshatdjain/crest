@@ -1,3 +1,5 @@
+import { askNotch } from "../../lib/tauriTransport";
+import { isNotchWindow } from "../../lib/windowKind";
 import { invoke } from "@tauri-apps/api/core";
 import { isNative } from "../../platform/native";
 import { createStore } from "../../lib/store";
@@ -29,13 +31,19 @@ export async function downloadPairs(pairs: [string, string][]) {
   try {
     for (const [from, to] of pairs) if (!hasPair(offlineStatus.get(), [from, to])) await invoke("translate_download", { from, to }).finally(refreshOfflineStatus);
   } finally {
-    refreshOfflineStatus();
+    statusChanged();
   }
 }
 
 export async function removePair([from, to]: [string, string]) {
   closeWorker();
-  await invoke("translate_remove", { from, to }).finally(refreshOfflineStatus);
+  await invoke("translate_remove", { from, to }).finally(statusChanged);
+}
+
+/** Reads the status again; from the settings window the notch, which translates the songs, reads it too and closes its worker. */
+function statusChanged() {
+  refreshOfflineStatus();
+  if (!isNotchWindow) askNotch({ kind: "refresh", what: "offline" });
 }
 
 let worker: Worker | null = null;
@@ -45,7 +53,7 @@ let idle = 0;
 let nextId = 0;
 const waiting = new Map<number, { resolve: (lines: string[]) => void; reject: (e: Error) => void }>();
 
-function closeWorker() {
+export function closeWorker() {
   window.clearTimeout(idle);
   worker?.terminate();
   worker = null;
