@@ -80,6 +80,15 @@ test("only the known actions reach the notch", () => {
   assert.deepEqual(ran, [{ kind: "refresh", what: "github", force: true }]);
 });
 
+test("a notices status check reaches the notch", () => {
+  // The notch follows the sources and gives Windows' banners and sound back on what it reads; the settings page only asks.
+  const bus = memoryBus();
+  const ran: unknown[] = [];
+  onActions(bus, (a) => ran.push(a));
+  sendAction(bus, { kind: "refresh", what: "notices" });
+  assert.deepEqual(ran, [{ kind: "refresh", what: "notices" }]);
+});
+
 test("a vault lock reaches the notch", () => {
   const bus = memoryBus();
   const ran: unknown[] = [];

@@ -1,3 +1,4 @@
+import { askNotch } from "../../lib/tauriTransport";
 import { isNotchWindow } from "../../lib/windowKind";
 import { createStore } from "../../lib/store";
 import { decodeSound, playNotice } from "../../lib/sound";
@@ -247,8 +248,13 @@ export async function requestAccess() {
   if (access !== "request-failed") sourceStatus.set((s) => ({ ...s, access }));
 }
 
-/** Reads the sources' state again (the settings page does this when it opens). */
+/**
+ * Reads the sources' state again (the settings page does this when it opens and when its window gets the focus back). The notch
+ * reads it, so it gives Windows' banners and sound back on what it learns and starts a source that waited for access; the
+ * settings window gets the result over the bridge.
+ */
 export function refreshStatus() {
+  if (!isNotchWindow) return askNotch({ kind: "refresh", what: "notices" });
   void noticeSource.status().then((s) => sourceStatus.set(s));
 }
 

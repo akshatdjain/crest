@@ -18,6 +18,7 @@ import { discordState, reconnectDiscord } from "../../discord/store";
 import { github, refreshGithub } from "../../github/store";
 import { hotkeysResting, shortcutResult } from "../../launcher/store";
 import { leetcode, refreshLeetcode } from "../../leetcode/store";
+import { refreshStatus, sourceStatus } from "../../notices/store";
 import { syncOfflineStatus } from "../../now-playing/offlineEngine";
 import { plugins, refreshPlugins } from "../../plugins/store";
 import { privacy, snoozed, togglePresentation } from "../../privacy/store";
@@ -53,6 +54,7 @@ export const sharedStores: Record<string, Shared> = {
   monitor,
   monitors,
   restored,
+  sourceStatus,
 };
 
 /** A request from the settings window, carried out here in the notch by the function the window called. */
@@ -86,6 +88,7 @@ const refreshers: Record<Extract<BridgeAction, { kind: "refresh" }>["what"], (fo
   discord: reconnectDiscord,
   plugins: refreshPlugins,
   offline: syncOfflineStatus,
+  notices: refreshStatus,
 };
 
 /**

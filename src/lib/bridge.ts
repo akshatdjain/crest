@@ -56,7 +56,7 @@ export function followStores(t: Transport, stores: Record<string, Shared>): () =
   return off;
 }
 
-const REFRESH = ["usage", "github", "leetcode", "calendar", "discord", "plugins", "offline"] as const;
+const REFRESH = ["usage", "github", "leetcode", "calendar", "discord", "plugins", "offline", "notices"] as const;
 type Refresh = (typeof REFRESH)[number];
 
 /** What the settings window may ask the notch to do. */

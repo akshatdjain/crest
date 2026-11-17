@@ -30,8 +30,12 @@ export function NoticesSettings() {
   const store = update.use().store;
   const fileError = soundFileError.use();
   const apps = Object.entries(n.apps).sort((a, b) => a[1].localeCompare(b[1]));
-  // Access may have changed in Windows Settings while Crest ran.
-  useEffect(refreshStatus, []);
+  // Access may have changed in Windows Settings while Crest ran: read again when the page opens and when its window comes back.
+  useEffect(() => {
+    refreshStatus();
+    window.addEventListener("focus", refreshStatus);
+    return () => window.removeEventListener("focus", refreshStatus);
+  }, []);
 
   const windowsHint =
     failed && status.access !== "allowed" ? t("Windows hat nicht gefragt: Einstellungen › Datenschutz und Sicherheit › Benachrichtigungen, Zugriff für Apps erlauben")
