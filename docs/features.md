@@ -36,7 +36,7 @@ Turn each part on or off and drag to reorder them in **Settings → Display**. W
 
 A click on a part opens its tool: the readings open Hardware, the AI rings AI Usage, the cover, title and equalizer the music, the timer and the clock the Timer, the next event the Calendar, the weather the Weather tool, script parts Notices and downloads the Shelf. With **Open: Hover** the part under the pointer when the notch opens decides the same way, unless **Hovering a part opens its tool** is off (**Settings → General**, under Open). Anywhere else, or when that tool is off, the notch opens as usual.
 
-**Adjust on the notch**, next to the size in **Settings → Display**, closes the panel and puts the closed notch, capsule or line in a resize mode: drag its ends to change the width (both sides move) and its far side to change the height, double-click a grip for the default, and finish with **Done** or Esc. It neither opens nor moves meanwhile, and the sliders in the settings keep working too.
+**Adjust on the notch**, next to the size in **Settings → Display**, puts the closed notch, capsule or line in a resize mode: drag its ends to change the width (both sides move) and its far side to change the height, double-click a grip for the default, and finish with **Done** or Esc. It neither opens nor moves meanwhile, and the sliders in the settings keep working too.
 
 <p align="center"><img src="media/features/closed-notch.png" alt="The closed notch with coloured icons: a running timer, the AI quota ring, CPU, RAM and GPU load, download and upload, power draw, battery, temperature, the clock and today's GitHub contributions" width="820" /></p>
 <p align="center"><img src="media/features/settings-closed-notch.png" alt="Settings, Display: the closed row's parts with switches, the system load readings and the quota alerts" width="560" /></p>
@@ -333,7 +333,7 @@ Format, API, limits and the security model: [plugins.md](plugins.md).
 - Any tool in the dock can have a shortcut of its own: **Open a tool directly**, under the shortcuts, adds one (the Clipboard, the Shelf, a plugin's tool and so on). It opens the notch on that tool from anywhere, switches to it while the notch shows another, and closes the notch when that tool is already showing. It follows the open shortcut's rules, and a tool that is off keeps its shortcut but only listens to it once it is on again.
 - Crest tells you when another program, the launcher's Alt keys, one of Crest's shortcuts or another tool's already use it.
 - Opening Crest on purpose (shortcut, tray, a second launch) shows it even while a rule hides it, until it closes again.
-- Right click on the notch opens the settings, and the mouse wheel switches tools.
+- Right click on the notch opens the settings window, and the mouse wheel switches tools.
 
 <p align="center"><img src="media/features/settings-general.png" alt="Settings, General: clock, open on hover or click, delays, start with Windows and the shortcut" width="560" /></p>
 
@@ -347,12 +347,14 @@ Format, API, limits and the security model: [plugins.md](plugins.md).
 | --- | --- |
 | Open or close | Hover, click or **Ctrl + Alt + Space** (choose the trigger in settings) |
 | Switch tools | Tool bar at the bottom of the open notch |
-| Settings | Gear icon at the end of the tool bar, or **Settings …** in the tray menu |
+| Settings | Gear icon at the end of the tool bar, a right click on the notch, **Settings …** in the tray menu, or starting Crest again |
 | Tray icon | Left click opens the notch, right click shows the menu (open, settings, autostart, quit) |
 | Move the notch | Drag it along its edge, closed or by its header; drag the closed notch towards another edge to move it there. "Reset to center" is in settings |
 | Add files | Drag them onto the notch, or paste with Ctrl + V |
 
 ## Settings
+
+The settings open in a window of their own, apart from the notch: from the gear at the end of the tool bar, a right click on the notch, **Settings …** in the tray menu and the links in the tools (a "connect" button without a key, for example), or by starting Crest again, which also brings back a Crest hidden with the shortcut. Opening them while the window is open brings it to the front, on the page asked for. The window shows in Alt + Tab, is moved by its title row, follows the theme and the language, and closing it frees its memory. A change made there shows at once on the notch and the timer window, and the notch applies it, so the window can close at any moment, also in the middle of recording a shortcut. The browser demo keeps the settings in the panel.
 
 Settings are grouped into General, Display, Window, Tools, Timer, AI, Connections, Themes, Notices and Plugins. The search field above the pages (**Ctrl + F**) finds a setting by its name, its description or its group, in the interface language or in English, and a click opens its page with the setting highlighted. There you can reorder (drag) or hide tools, pick the monitor and the screen edge, set what the notch does over full-screen and maximized windows, record shortcuts, and enable autostart. The very first launch turns autostart on (not in the Store build or a portable copy; on a Mac only once Crest runs from Applications): switch it off in General or in the tray menu, and before deleting the app on a Mac, since the login item stays otherwise. Language, in General, is System (the Windows language, or English when Crest does not have it) or one of English, Simplified Chinese, Spanish, Hindi, Arabic, French, Portuguese (Brazil), Russian, Japanese, German and Italian; it switches at once, tray menu included, and numbers and dates follow it. In Arabic the panel reads right to left, while the closed notch, the sliders, the song's time bar and key combinations keep their left to right order.
 
