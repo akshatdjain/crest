@@ -3,6 +3,7 @@ import { display, status, windowShell, type StatusSeed } from "../../platform/se
 import { clipboard } from "../../platform/clipboard";
 import { notchOpen } from "../../notch/useNotchState";
 import { settings } from "../../settings/store";
+import { focusMode } from "../../notch/focus";
 import { fullscreen } from "../system/gaming";
 import { screen } from "../window/store";
 import { presentingNow } from "../privacy/store";
@@ -54,11 +55,11 @@ export function startStatusWatch() {
       if (!revealed) display.alert((revealed = true));
     } else if (revealed) unreveal = window.setTimeout(() => display.alert((revealed = false)), REVEAL_TAIL_MS);
   };
-  // Whether the alert went on screen. Not over a fullscreen app, but an indicator with `everywhere` on; dropped rather than kept for later.
-  // Not a device name (Bluetooth, the sound output) while presenting or sharing the screen, as with a download's file name.
+  // Whether the alert went on screen. Not in focus mode, and not over a fullscreen app but an indicator with `everywhere` on; dropped rather
+  // than kept for later. Not a device name (Bluetooth, the sound output) while presenting or sharing the screen, as with a download's file name.
   const show = (alert: StatusAlert | null, on: boolean): boolean => {
     const everywhere = settings.get().closed.statusAlerts.everywhere;
-    if (!alert || !on || heldBack(alert.kind, { fullscreen: fullscreen.get(), everywhere }) || ((alert.kind === "bt" || alert.kind === "output") && presentingNow())) return false;
+    if (!alert || !on || focusMode.get() || heldBack(alert.kind, { fullscreen: fullscreen.get(), everywhere }) || ((alert.kind === "bt" || alert.kind === "output") && presentingNow())) return false;
     statusAlert.set(alert);
     reveal(everywhere && INDICATORS.has(alert.kind));
     clearTimeout(hide);
@@ -85,7 +86,7 @@ export function startStatusWatch() {
       const alerts = settings.get().closed.statusAlerts;
       // One alert per reading: the charger or the battery first, then Energy saver (which can switch on with the 20 % warning), then a charged battery.
       if (show(alert, alerts.power)) return;
-      // A low-battery warning dropped for a fullscreen app is not used up: the next reading gives it again.
+      // A low-battery warning dropped for focus mode or a fullscreen app is not used up: the next reading gives it again.
       if (alerts.power && alert && alert.tone !== "normal") Object.assign(low, before);
       if (!show(saver, alerts.saver)) show(charged, alerts.power);
     },
@@ -145,18 +146,21 @@ export function startStatusWatch() {
   let windowHidden = false;
   const configure = () => {
     const alerts = settings.get().closed.statusAlerts;
-    const quiet = fullscreen.get();
-    // Alerts are dropped while quiet, so the key poll rests too (not when the indicators show everywhere), and so does the Do not disturb poll: Windows can
-    // switch it on for a game or a fullscreen app, and its end would alert as the game closes. Bluetooth, volume and microphone run while their own alerts are on.
+    const inFocus = focusMode.get();
+    const quiet = inFocus || fullscreen.get();
+    // Alerts are dropped while quiet, so the key poll rests too (over a fullscreen app not when the indicators show everywhere, in focus mode
+    // always), and so does the Do not disturb poll: Windows can switch it on for a game or a fullscreen app, and its end would alert as the game
+    // closes. Bluetooth, volume and microphone run while their own alerts are on.
     // Off, the watcher forgets the devices; the next scan is a new baseline, so the ones remembered here would hide a reconnect.
     if (!alerts.bt) devices.clear();
-    const keys = !quiet || alerts.everywhere;
-    const c = { ddc: alerts.brightness, locks: alerts.lock && keys, insert: alerts.insert && keys, bt: alerts.bt, volume: alerts.volume, mic: alerts.mic, focus: alerts.focus && !quiet, hideOsd: osdHidden(alerts, { fullscreen: fullscreen.get(), hidden: screen.get() === "hide" || windowHidden }), osdArmed: osdArmed(alerts) };
+    const keys = !inFocus && (!fullscreen.get() || alerts.everywhere);
+    const c = { ddc: alerts.brightness, locks: alerts.lock && keys, insert: alerts.insert && keys, bt: alerts.bt, volume: alerts.volume, mic: alerts.mic, focus: alerts.focus && !quiet, hideOsd: osdHidden(alerts, { focus: inFocus, fullscreen: fullscreen.get(), hidden: screen.get() === "hide" || windowHidden }), osdArmed: osdArmed(alerts) };
     if (JSON.stringify(c) === sent) return;
     sent = JSON.stringify(c);
     status.configure(c);
   };
   settings.subscribe(configure);
+  focusMode.subscribe(configure);
   fullscreen.subscribe(configure);
   screen.subscribe(configure);
   windowShell.onHidden((hidden) => {

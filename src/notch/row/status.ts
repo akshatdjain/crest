@@ -216,10 +216,11 @@ type OsdAlerts = { volume: boolean; brightness: boolean; hideOsd: boolean; every
 export const osdArmed = (alerts: OsdAlerts): boolean => alerts.hideOsd && alerts.volume && alerts.brightness;
 
 /**
- * Whether the Windows indicator is hidden now: the option is in force and Crest's HUD can show, so not over a fullscreen app, where
- * status alerts are dropped, and not while a window rule or the hide shortcut hides Crest, which would leave no indicator at all (#50).
- * With `everywhere` on Crest's HUD shows in both cases, so the Windows indicator stays hidden.
+ * Whether the Windows indicator is hidden now: the option is in force and Crest's HUD can show, so not in focus mode nor over a fullscreen
+ * app, where status alerts are dropped, and not while a window rule or the hide shortcut hides Crest, which would leave no indicator at all
+ * (#50). With `everywhere` on Crest's HUD shows over a fullscreen app and a hidden Crest, so the Windows indicator stays hidden there;
+ * focus mode drops the HUD all the same.
  */
-export function osdHidden(alerts: OsdAlerts, now: { fullscreen: boolean; hidden: boolean }): boolean {
-  return osdArmed(alerts) && (alerts.everywhere === true || (!now.fullscreen && !now.hidden));
+export function osdHidden(alerts: OsdAlerts, now: { focus: boolean; fullscreen: boolean; hidden: boolean }): boolean {
+  return osdArmed(alerts) && !now.focus && (alerts.everywhere === true || (!now.fullscreen && !now.hidden));
 }

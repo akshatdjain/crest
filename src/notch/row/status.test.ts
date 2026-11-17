@@ -118,7 +118,7 @@ test("level: brightness and out of range readings", () => {
 });
 test("osd: hidden only while the HUD replaces both and can show", () => {
   const on = { volume: true, brightness: true, hideOsd: true };
-  const shown = { fullscreen: false, hidden: false };
+  const shown = { focus: false, fullscreen: false, hidden: false };
   assert.equal(osdHidden(on, shown), true);
   assert.equal(osdHidden({ ...on, hideOsd: false }, shown), false);
   assert.equal(osdHidden({ ...on, brightness: false }, shown), false);
@@ -126,11 +126,14 @@ test("osd: hidden only while the HUD replaces both and can show", () => {
   assert.equal(osdHidden(on, { ...shown, fullscreen: true }), false);
   // Hidden by a window rule or the hide shortcut, Crest shows no HUD, so Windows' own indicator comes back (#50).
   assert.equal(osdHidden(on, { ...shown, hidden: true }), false);
-  // A fullscreen app only pauses it: the option stays in force, so the process that restores the indicator stays too.
+  // Focus mode drops Crest's HUD, also with the indicators shown everywhere, so Windows' own comes back.
+  assert.equal(osdHidden(on, { ...shown, focus: true }), false);
+  assert.equal(osdHidden({ ...on, everywhere: true }, { ...shown, focus: true }), false);
+  // Focus mode or a fullscreen app only pause it: the option stays in force, so the process that restores the indicator stays too.
   assert.equal(osdArmed(on), true);
   assert.equal(osdArmed({ ...on, volume: false }), false);
   // With the indicators shown everywhere Crest's HUD shows in both cases, so Windows' own stays hidden.
-  assert.equal(osdHidden({ ...on, everywhere: true }, { fullscreen: true, hidden: true }), true);
+  assert.equal(osdHidden({ ...on, everywhere: true }, { ...shown, fullscreen: true, hidden: true }), true);
   assert.equal(osdHidden({ ...on, hideOsd: false, everywhere: true }, shown), false);
 });
 test("fullscreen: alerts wait it out, the indicators not when shown everywhere", () => {

@@ -3,10 +3,11 @@ import { AnimatePresence, animate, frame, motion, useMotionValue, useReducedMoti
 import { GearSix, PushPin } from "@phosphor-icons/react";
 import { content, springs } from "../design/motion";
 import { livePosition, useNowPlaying } from "../platform/media";
-import { isMac, isNative, keyboardFocus, onNativeBlur, onNativeHover, onNativeHoverAt, onShortcut, onTrayOpen, setHitRect, setMemoryLow } from "../platform/native";
+import { isMac, isNative, keyboardFocus, onNativeBlur, onNativeHover, onNativeHoverAt, onShortcut, onTrayOpen, setHitRect, setMemoryLow, setPassthrough } from "../platform/native";
 import { PrivacyDots, usePrivacyDots } from "../features/privacy/PrivacyDots";
 import { privacy, usePresenting } from "../features/privacy/store";
 import { fullscreen, useGamingLive } from "../features/system/gaming";
+import { FOCUS_CLICKS, focusMode, setFocusMode } from "./focus";
 import { dragArea, edgeOf, placementKey, useDragToMove, viewLine, windowLength, windowY } from "./drag";
 import { useLiveActivity } from "./live";
 import { CompactRow } from "./row/CompactRow";
@@ -69,6 +70,7 @@ const DROP_WAIT_MS = 500;
 
 export function Notch() {
   const { status, open, close, dismiss, toggle, onPointerEnter, onPointerLeave } = useNotchState();
+  const focus = focusMode.use();
   const { tools: toolSettings, display: displaySettings, behavior, closedSize: savedSizes, themes, closed: closedSettings } = settings.use();
   // Resize mode (ClosedResize.tsx): the closed shape shows grips instead of its parts and neither opens nor moves; a grip's drag draws at once.
   const editing = closedEdit.use();
@@ -78,6 +80,8 @@ export function Notch() {
   const screenBehavior = screen.use();
   // The resize mode changes the chosen look, not the line a window rule turned it into for now.
   const idleStyle = editing ? displaySettings.idleStyle : effectiveIdleStyle(displaySettings.idleStyle, screenBehavior);
+  // Focus mode as a line: no live activity, no dots, only the thin strip at the edge.
+  const line = focus && displaySettings.focusStyle === "line";
   // Line as the normal closed look: hover and click work as usual, but nothing shows
   // while closed but the song's progress. Only an urgent notice opens it into the notch, until answered or for its time:
   // a finished timer, a due to-do reminder (the user asked to be told at that time), a running recording (its stop button stays in reach), a status alert,
@@ -91,7 +95,7 @@ export function Notch() {
   const urgent = timerFinished || tasksDue || recordingOn || asking;
   const statusOn = statusAlert.use() !== null;
   const pop = popping.use(), popped = pop !== null;
-  const idleLine = idleStyle === "line";
+  const idleLine = !focus && idleStyle === "line";
   const alert = idleLine && (urgent || statusOn || popped);
   // Plugin tools exist once their list has been read.
   plugins.use();
@@ -164,18 +168,21 @@ export function Notch() {
   // The idle line never passes through the small notch: line → slightly bigger line on
   // hover → open, and straight back to the line on close.
   const lineIdle = idleLine && !alert;
+  // Focus mode as a line draws the line whatever the look; outside it, the look a window rule may have turned into the line.
+  const style = line ? "line" : idleStyle;
   // What opens a capsule that a window rule turned into the line comes as the capsule, the look that was chosen.
-  const surface = surfaceOf(idleStyle, displaySettings.idleStyle, alert);
-  // The row is on screen closed or peeking, not as a line, not while Rust hides the window for a window rule.
+  const surface = surfaceOf(style, displaySettings.idleStyle, alert);
+  // The row is on screen closed or peeking, not as a line, not in focus mode, not while Rust hides the window for a window rule.
   const hiddenForFullscreen = screenBehavior === "hide";
-  const showRow = status !== "open" && !idleLine && !hiddenForFullscreen && !editing;
+  const showRow = status !== "open" && !line && !idleLine && !focus && !hiddenForFullscreen && !editing;
   // Content width of the closed row, as it last reported it (kept while open, so closing goes straight to it).
   const [rowWidth, setRowWidth] = useState(0);
-  // Notices cover the row; on the idle line only urgent ones show (timer, reminder, a status alert). While one shows the shape takes its width.
+  // Notices cover the row; on the idle line only urgent ones show (timer, reminder, a status alert, an app's notice), in dimmed focus mode only a
+  // finished timer, a due reminder, a question or the recording. While one shows the shape takes its width.
   // The capsule snaps with its closed shape, read when a drag moves (closedW and closedH are set below).
   const drag = useDragToMove(status, () => closedGeometry(surface, closedW, closedH));
   // The edge it hangs from (the capsule floats on the top frame); on a side edge the row stands as a column, which shows notices as an icon line.
-  const edge = edgeOf(idleStyle, drag.dock);
+  const edge = edgeOf(style, drag.dock);
   const side = across(edge);
   // Glass (src/notch/glass): Windows, the capsule's open panel, or one hanging from the top edge from the notch or the line. The layer
   // stays mounted while the setting is on, whatever the shape: remounting it would build its context again (37-65 ms) on every change.
@@ -192,10 +199,11 @@ export function Notch() {
   // The hide shortcut (or a rule) hides the window and may leave the panel open meanwhile.
   const [windowHidden, setWindowHidden] = useState(false);
   useEffect(() => windowShell.onHidden(setWindowHidden), []);
-  // What turns any glass off. The cover only on a light theme: its veil is light, and the panel takes light text over the cover.
+  // What turns any glass off. The cover only on a light theme: its veil is light, and the panel takes light text over the cover. Focus mode
+  // counts as hidden: a notch put aside keeps no live copy of the screen running for itself.
   const blocks = {
     forcedColors: forcedColors.use(), contrastMore: contrastMore.use(), reducedTransparency: reducedTransparency.use(),
-    saver: powerState.use()?.saver === true, fullscreen: fullscreen.use() || gaming, hidden: hiddenForFullscreen || windowHidden,
+    saver: powerState.use()?.saver === true, fullscreen: fullscreen.use() || gaming, hidden: hiddenForFullscreen || windowHidden || focus,
     presenting, cover: backdrop && !darkTheme, dragging: drag.dragging, editing,
   };
   const allowed = glassAllowed({ on: themes.glass, windows: !isMac, fits: glassFits, webgl: !broken, ...blocks });
@@ -249,9 +257,10 @@ export function Notch() {
   const closedGlass = useClosedGlassInk(closedInk?.["--accent"] ?? accent, glass === "shown" && closedLook);
   const inkFade = themes.glass && themes.glassLive && support?.supported === true && !reduced;
   // Under a window rule that hides the window, a status alert still draws: an indicator shown everywhere brings the window out for it.
-  const noticeTime = status !== "open" && (showRow || alert || (hiddenForFullscreen && statusOn));
+  // In dimmed focus mode only what cannot wait comes up, as a card that takes the pointer (setPassthrough below).
+  const noticeTime = status !== "open" && (showRow || alert || (focus && !line && urgent && !hiddenForFullscreen) || (hiddenForFullscreen && statusOn));
   const showNotices = !side && noticeTime && !editing;
-  // On the idle line, only an urgent notice brings the column up: its icon alone, so the shape always has something to click.
+  // On the idle line or dimmed, only an urgent notice brings the column up: its icon alone, so the shape always has something to click.
   const showColumn = side && noticeTime && !editing;
   const notice = showNotices ? noticeSize : null;
   // The chosen size (collapsed.ts): the content is drawn at the height over its designed 30, the width is a minimum the content widens,
@@ -280,17 +289,17 @@ export function Notch() {
   const workTop = monitorMetrics().workTop;
   const viewH = window.innerHeight / viewZoom(), viewW = window.innerWidth / viewZoom();
   const capY = capsuleY(drag.y, sizes.capsuleHeight, isNative ? monitorMetrics().height : viewH);
-  const bridged = hasBridge(idleStyle, capY, workTop);
-  const winTop = isNative ? windowY(capY) : windowYFor(idleStyle, capY, viewH, workTop);
-  const capsuleTop = idleStyle === "capsule" ? capY - winTop : surface === "capsule" ? lineCapsuleY(capY, workTop) - winTop : 0;
-  const lineShape = lineIdle && status !== "open";
+  const bridged = hasBridge(style, capY, workTop);
+  const winTop = isNative ? windowY(capY) : windowYFor(style, capY, viewH, workTop);
+  const capsuleTop = style === "capsule" ? capY - winTop : surface === "capsule" ? lineCapsuleY(capY, workTop) - winTop : 0;
+  const lineShape = line || (lineIdle && status !== "open");
   // Open, a bridged capsule hangs from the edge like the notch; a floating one opens from its top, moved up as far as the panel needs (a notice card the same, so it stays in the window).
   // The line's distance from the edge is a place on the screen, saved at 100 % like display.y.
   const shapeTop = status !== "open" ? (lineShape ? toPageCss(sizes.lineTop, behavior.scale) : notice ? panelTop(capsuleTop, shapeH) : capsuleTop) : bridged ? 0 : panelTop(capsuleTop, size.h);
   const top = (isNative ? 0 : winTop) + shapeTop;
 
   const shape = lineShape
-    ? lineGeometry(Math.min(sizes.lineLength, span), sizes.lineThickness, sizes.lineTop > 0, status === "peek")
+    ? lineGeometry(Math.min(sizes.lineLength, span), sizes.lineThickness, sizes.lineTop > 0, !line && status === "peek")
     : shapeFor(status, surface, closedW, shapeH, size, !bridged, sideSize);
   const tightHit = lineShape && !editing;
   // On a side edge the open panel reaches across the screen as far as the page is wide.
@@ -299,7 +308,7 @@ export function Notch() {
   const topValue = useSpringTop(top, transition, drag.dragging);
   // The pet's nest stands beside the closed shape, its top a little below the shape's (topValue: as padding or margin, the shape's top).
   const pet = closedSettings.pet;
-  const nestShown = !!pet.id && status !== "open" && !lineShape && !hiddenForFullscreen && !editing;
+  const nestShown = !!pet.id && status !== "open" && !lineShape && !hiddenForFullscreen && !editing && !focus;
   const nestTop = useTransform(topValue, (v) => v + 4);
 
   // "Follow the cursor" and "All monitors" (monitor.ts) move the notch only while it is closed, not dragged and not recording.
@@ -325,18 +334,28 @@ export function Notch() {
     };
   }, [dismiss]);
 
-  // Hover stays off while a question waits, or the card would vanish under the pointer, and while a Windows notice shows:
-  // a click on its card opens its app (issue #34), and the panel opening on the way there would take the card away first.
-  // Open, the enter still has to run: it cancels the close timer a leave started.
-  const hoverOff = editing || ((asking || pop?.source === "windows") && status !== "open");
+  // Hover stays off in focus mode (a card there takes the pointer, see below), while a question waits, or the card would vanish under the
+  // pointer, and while a Windows notice shows: a click on its card opens its app (issue #34), and the panel opening on the way there would
+  // take the card away first. Open, the enter still has to run: it cancels the close timer a leave started.
+  const hoverOff = editing || focus || ((asking || pop?.source === "windows") && status !== "open");
   useNativeBridge(hitRef, topValue, hoverOff ? NOOP : onPointerEnter, onPointerLeave, edge);
+  // Focus mode is click-through, except while a card with buttons shows (a question, a finished timer, a reminder, the recording): its buttons need the pointer.
+  useEffect(() => setPassthrough(focus && !noticeTime), [focus, noticeTime]);
   // Starting the resize mode from the settings closes the panel onto the closed shape it changes.
   useEffect(() => {
     if (editing) close();
   }, [editing, close]);
 
+  // Focus mode on → notch closes, no more hover.
+  useEffect(() => {
+    if (focus) close();
+  }, [focus, close]);
+
+  // Three quick clicks toggle focus mode (in the browser also off; natively Rust counts).
   const onClick = (e: React.MouseEvent) => {
-    if (drag.moved() || editing || status === "open") return;
+    if (drag.moved() || editing) return;
+    if (e.detail >= FOCUS_CLICKS && !isInteractive(e.target)) return setFocusMode(!focus);
+    if (focus || status === "open") return;
     // A click on a part of the closed row opens its tool (a click elsewhere, as usual).
     const part = partTarget(e);
     if (part) openOn(part);
@@ -353,7 +372,7 @@ export function Notch() {
 
   // Right click on the notch opens the settings; text fields keep their menu.
   const onContextMenu = (e: React.MouseEvent) => {
-    if (!behavior.rightClickSettings || editing || isTextField(e.target) || drag.moved()) return;
+    if (!behavior.rightClickSettings || focus || editing || isTextField(e.target) || drag.moved()) return;
     openOn(settingsTab.id);
   };
 
@@ -513,10 +532,11 @@ export function Notch() {
   return (
     <div
       ref={rootRef}
-      className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center"
+      className="pointer-events-none fixed inset-x-0 top-0 z-50 flex justify-center transition-opacity duration-200"
       // In the browser the notch moves inside the window; natively the whole window moves (display.rs).
       style={{
         ["--accent" as string]: accent,
+        opacity: focus && !line ? 0.5 : 1,
         transform: frame ? [frame, slide].filter(Boolean).join(" ") : slide,
         ...(frame && { right: "auto", width: isNative ? windowLength(drag.dock) : side ? viewH : viewW, transformOrigin: "0 0" }),
         // In the browser the layer stands in for the window Rust zooms natively.
@@ -538,12 +558,12 @@ export function Notch() {
           sticky.onPointerMove(e);
           if (status !== "open") pointed.current = { tool: partTarget(e), at: Date.now() };
         }}
-        onPointerDown={editing ? undefined : drag.onPointerDown}
+        onPointerDown={focus || editing ? undefined : drag.onPointerDown}
         // In Tauri, hover comes from the Rust poll (useNativeBridge), not the DOM.
         onPointerEnter={isNative || hoverOff ? undefined : onPointerEnter}
         onPointerLeave={() => {
           pointed.current = { tool: null, at: 0 };
-          if (!isNative) onPointerLeave();
+          if (!isNative && !focus) onPointerLeave();
         }}
         onClick={onClick}
         onContextMenu={onContextMenu}
@@ -572,14 +592,16 @@ export function Notch() {
               </AnimatePresence>
               {/* The notch's insets are the larger ones, so a notice fits either surface. */}
               <AnimatePresence>{showNotices && <NoticeLayer key="notices" max={rowRoom("notch", scale, span)} scale={scale} onSize={setNoticeSize} urgentOnly={!showRow} mono={hud && hudGlass && liveAllowed} />}</AnimatePresence>
-              {/* Closed, the dots are the row's last part; under a notice the row is faded out, so they stand on their own (beside the notice, in the shape's inset). */}
-              {showRow && notice && <PrivacyDots centered={side} beside={(notice.width / 2 + (surface === "capsule" ? ROW.insetCapsule : ROW.insetNotch) / 2) / (exact ? scale : 1)} />}
+              {/* Closed, the dots are the row's last part; dimmed for focus there is no row, and under a notice the row is faded out, so they stand on their own (beside the notice, in the shape's inset). */}
+              {(focus || (showRow && notice)) && status !== "open" && !line && (
+                <PrivacyDots centered={side} beside={!focus && notice ? (notice.width / 2 + (surface === "capsule" ? ROW.insetCapsule : ROW.insetNotch) / 2) / (exact ? scale : 1) : undefined} />
+              )}
             </div>
             {lineIdle && status !== "open" && !hiddenForFullscreen && <LineProgress along={side ? "y" : "x"} />}
           </div>
-          {editing && status !== "open" && <ClosedResize style={idleStyle} edge={edge} widest={span} />}
+          {editing && status !== "open" && <ClosedResize style={style} edge={edge} widest={span} />}
           {/* Open they stand in the header. */}
-          {status === "open" && !idleLine && <PrivacyDots />}
+          {status === "open" && !line && !idleLine && <PrivacyDots />}
 
           <AnimatePresence>
             {status === "open" && (
@@ -634,7 +656,7 @@ export function Notch() {
           </AnimatePresence>
         </NotchShape>
 
-        {editing && status !== "open" && <ClosedResizeBar style={idleStyle} edge={edge} />}
+        {editing && status !== "open" && <ClosedResizeBar style={style} edge={edge} />}
       </motion.div>
       {/* The pet's nest, beside the shape and outside its hit zone. */}
       <AnimatePresence>
@@ -1035,6 +1057,10 @@ function useNativeBridge(
       if (typing) holdOpen(false);
     };
   }, [hitRef, top, onEnter, onLeave, edge]);
+}
+
+function isInteractive(el: EventTarget | null): boolean {
+  return el instanceof Element && !!el.closest("button, input, textarea, a, [role=slider], [role=button], [role=radio], [role=switch], [role=option], [role=tab], [data-no-drag]");
 }
 
 function isTextField(el: EventTarget | null): boolean {
