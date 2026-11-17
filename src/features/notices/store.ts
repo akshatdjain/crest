@@ -94,7 +94,7 @@ function ingest(input: IncomingNotice, focus: boolean) {
   if (apps !== s.apps) updateSettings((cur) => ({ notices: { ...cur.notices, apps } }));
   else if (input.source === "windows") syncWindows(true);
   const d = new Date();
-  const where = route(input.appId, s, { presenting: presentingNow(), now: d.getHours() * 60 + d.getMinutes(), fullscreen: fullscreen.get(), focus });
+  const where = route(input.appId, s, { presenting: presentingNow(), now: d.getHours() * 60 + d.getMinutes(), fullscreen: fullscreen.get(), focus, focusMode: focusMode.get() });
   if (where === "drop") return;
   const n: Notice = { ...input, id: `${Date.now()}-${nextId++}` };
   const inPlace = history.get().some((old) => sameKey(old, n));
