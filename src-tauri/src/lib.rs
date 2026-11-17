@@ -143,7 +143,7 @@ pub(crate) fn own_page(url: &tauri::Url) -> bool {
 /// What the settings window may not call: commands that act on the window calling them (its hit zone, its focus, its
 /// glass) or apply the settings to the system. The notch applies what the settings window saves, so only it does that.
 const SETTINGS_DENIED: &[&str] = &[
-    "display_apply", "keyboard_focus", "set_hit_rect", "set_pet_rect", "set_pinned", "memory_low", "hotkeys_apply",
+    "display_apply", "keyboard_focus", "set_hit_rect", "set_pet_rect", "set_pinned", "set_passthrough", "memory_low", "hotkeys_apply",
     "launcher_shortcuts", "clipboard_mode", "tray_texts", "media_pin", "status_configure", "notices_configure",
     "notices_banners", "notices_sounds", "discord_configure", "downloads_configure", "sharing_hide", "keep_awake_set",
     "mirror_picture_set", "glass_backdrop", "glass_live_start", "glass_live_stop", "glass_live_exclude", "display_alert",
@@ -991,6 +991,8 @@ mod tests {
         assert!(!ok("plugin", "secret_set") && !ok("", "mirror_picture"));
         assert!(ok("settings", "secret_set") && ok("settings", "settings_window_section") && ok("settings", "notch_open"));
         assert!(!ok("settings", "display_apply") && !ok("settings", "keyboard_focus") && !ok("settings", "hotkeys_apply"));
+        // Focus mode makes the notch ignore the mouse: only the notch may turn that on.
+        assert!(!ok("settings", "set_passthrough"));
     }
 
     #[test]
