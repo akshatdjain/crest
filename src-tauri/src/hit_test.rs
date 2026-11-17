@@ -129,21 +129,37 @@ const POLL: Duration = Duration::from_millis(16);
 /// the next poll near the notch is fast again.
 const POLL_FAR: Duration = Duration::from_millis(50);
 const FAR: f64 = 160.0;
-/// Leaving focus mode: this many clicks on the notch, each at most `CLICK_GAP` apart.
+/// Leaving focus mode: this many clicks on the notch, each within the double-click time of the one before, as the page counts the
+/// clicks that enter it. Windows' own setting; elsewhere the usual default.
 const EXIT_CLICKS: u32 = 3;
-const CLICK_GAP: Duration = Duration::from_millis(450);
+#[cfg(not(windows))]
+const CLICK_GAP: Duration = Duration::from_millis(500);
 
-/// Counts the clicks that leave focus mode: true on the `EXIT_CLICKS`th, each at most `CLICK_GAP` after the one before, then it
-/// starts over. A slower click starts a new count.
-#[derive(Default)]
+fn double_click_gap() -> Duration {
+    #[cfg(windows)]
+    {
+        use windows::Win32::UI::Input::KeyboardAndMouse::GetDoubleClickTime;
+        Duration::from_millis(u64::from(unsafe { GetDoubleClickTime() }))
+    }
+    #[cfg(not(windows))]
+    CLICK_GAP
+}
+
+/// Counts the clicks that leave focus mode: true on the `EXIT_CLICKS`th, each at most `gap` after the one before, then it starts over.
+/// A slower click starts a new count.
 struct Clicks {
     count: u32,
     last: Option<Instant>,
+    gap: Duration,
 }
 
 impl Clicks {
+    fn new(gap: Duration) -> Self {
+        Self { count: 0, last: None, gap }
+    }
+
     fn click(&mut self, at: Instant) -> bool {
-        let quick = self.last.is_some_and(|last| at.saturating_duration_since(last) <= CLICK_GAP);
+        let quick = self.last.is_some_and(|last| at.saturating_duration_since(last) <= self.gap);
         self.count = if quick { self.count + 1 } else { 1 };
         self.last = Some(at);
         if self.count < EXIT_CLICKS {
@@ -250,7 +266,7 @@ pub fn spawn(app: AppHandle, window: WebviewWindow) {
         // Where the current press started; None = button up or the press began near the notch.
         let mut drag_from: Option<(f64, f64)> = None;
         let mut drag_active = false;
-        let mut clicks = Clicks::default();
+        let mut clicks = Clicks::new(double_click_gap());
         let mut far = false;
 
         loop {
@@ -379,10 +395,19 @@ mod tests {
     const R: HitRect = HitRect { x: 10.0, y: 0.0, w: 100.0, h: 30.0 };
 
     #[test]
+    fn the_leaving_clicks_take_the_double_click_time() {
+        // Clicks 480 ms apart enter focus mode under Windows' default 500 ms, so they must leave it too.
+        let t0 = Instant::now();
+        let ms = |n| t0 + Duration::from_millis(n);
+        let mut c = Clicks::new(Duration::from_millis(500));
+        assert!(!c.click(ms(0)) && !c.click(ms(480)) && c.click(ms(960)));
+    }
+
+    #[test]
     fn three_quick_clicks_leave_focus_mode() {
         let t0 = Instant::now();
         let ms = |n| t0 + Duration::from_millis(n);
-        let mut c = Clicks::default();
+        let mut c = Clicks::new(Duration::from_millis(450));
         assert!(!c.click(ms(0)) && !c.click(ms(300)) && c.click(ms(600)));
         // A slow click starts the count again.
         assert!(!c.click(ms(2000)) && !c.click(ms(2500)) && !c.click(ms(3200)));
