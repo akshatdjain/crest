@@ -71,6 +71,7 @@ mod translate;
 #[cfg_attr(not(windows), allow(dead_code))]
 mod screen_policy;
 pub mod secrets;
+mod settings_window;
 #[cfg(windows)]
 mod shelf;
 #[cfg_attr(not(windows), allow(dead_code))]
@@ -139,12 +140,23 @@ pub(crate) fn own_page(url: &tauri::Url) -> bool {
     }
 }
 
-/// The notch window may call every command; the timer and the mirror windows only what they need. Tauri lets every
+/// What the settings window may not call: commands that act on the window calling them (its hit zone, its focus, its
+/// glass) or apply the settings to the system. The notch applies what the settings window saves, so only it does that.
+const SETTINGS_DENIED: &[&str] = &[
+    "display_apply", "keyboard_focus", "set_hit_rect", "set_pet_rect", "set_pinned", "memory_low", "hotkeys_apply",
+    "launcher_shortcuts", "clipboard_mode", "tray_texts", "media_pin", "status_configure", "notices_configure",
+    "notices_banners", "notices_sounds", "discord_configure", "downloads_configure", "sharing_hide", "keep_awake_set",
+    "mirror_picture_set", "glass_backdrop", "glass_live_start", "glass_live_stop", "glass_live_exclude", "display_alert",
+    "timer_window_open",
+];
+
+/// The notch window may call every command; the settings, timer and mirror windows only what they need. Tauri lets every
 /// local window call every app command (the capabilities only cover plugins and core), so a bug in one of them would
 /// otherwise reach the vault or the terminal.
 fn command_allowed(window: &str, command: &str) -> bool {
     match window {
         "notch" => true,
+        "settings" => !SETTINGS_DENIED.contains(&command),
         "timer" => command == "timer_window_close",
         w if w.starts_with("mirror-") => command == "mirror_picture",
         _ => false,
@@ -432,6 +444,9 @@ pub fn run() {
             phone_share::phone_share_stop,
             timer_window::timer_window_open,
             timer_window::timer_window_close,
+            settings_window::settings_window_open,
+            settings_window::settings_window_section,
+            shell::notch_open,
             #[cfg(windows)]
             banners::notices_banners,
             #[cfg(windows)]
@@ -657,16 +672,31 @@ fn keyboard_focus(focus: bool, window: WebviewWindow, state: State<'_, FocusStat
     if focus {
         if foreground != own {
             *previous = foreground;
+        } else if settings_window::focused() {
+            *previous = SETTINGS_KEYBOARD;
         }
         let _ = window.set_focus();
         return;
     }
-    if foreground == own && *previous != 0 {
-        macos::activate_pid(*previous as i32);
-        *previous = 0;
+    if foreground == own {
+        match std::mem::take(&mut *previous) {
+            0 => {}
+            SETTINGS_KEYBOARD => {
+                if let Some(settings) = window.get_webview_window("settings") {
+                    let _ = settings.set_focus();
+                }
+            }
+            pid => {
+                macos::activate_pid(pid as i32);
+            }
+        }
     }
     display::closed(window.app_handle());
 }
+
+/// On a Mac, FocusState's value when Crest's own settings window had the keyboard (a process id cannot name a window).
+#[cfg(target_os = "macos")]
+const SETTINGS_KEYBOARD: isize = -1;
 
 /// A paste from the clipboard history (clipboard.rs): gives the keyboard back to the app that had it before the notch
 /// opened, as closing the notch does. Returns that app's window, or None when there is none (0, or closed since).
@@ -681,19 +711,25 @@ pub(crate) fn return_keyboard(app: &AppHandle) -> Option<isize> {
 #[cfg(target_os = "macos")]
 pub(crate) fn return_keyboard(app: &AppHandle) -> Option<isize> {
     let previous = std::mem::take(&mut *app.state::<FocusState>().0.lock().unwrap());
-    (previous != 0 && macos::activate_pid(previous as i32)).then_some(previous)
+    (previous > 0 && macos::activate_pid(previous as i32)).then_some(previous)
+}
+
+/// The settings window opens: the notch closing behind it must not give the keyboard to the app it had before.
+pub(crate) fn forget_focus(app: &AppHandle) {
+    *app.state::<FocusState>().0.lock().unwrap() = 0;
 }
 
 /// The pointer came onto the notch or the pet: a click there activates the window, so note the app it takes the keyboard
 /// from; closing the notch gives it back (keyboard_focus) and a paste goes there. By process: `hwnd()` waits for the main
-/// thread, which the poll in hit_test.rs must not do.
+/// thread, which the poll in hit_test.rs must not do. Crest's own settings window counts as an app here; the notch itself
+/// keeps the app noted before it.
 #[cfg(windows)]
 fn remember_foreground(window: &WebviewWindow) {
     use windows::Win32::UI::WindowsAndMessaging::GetWindowThreadProcessId;
     let foreground = unsafe { GetForegroundWindow() };
     let mut pid = 0;
     unsafe { GetWindowThreadProcessId(foreground, Some(&mut pid)) };
-    if pid != 0 && pid != std::process::id() {
+    if pid != 0 && (pid != std::process::id() || settings_window::focused()) {
         *window.state::<FocusState>().0.lock().unwrap() = foreground.0 as isize;
     }
 }
@@ -701,8 +737,12 @@ fn remember_foreground(window: &WebviewWindow) {
 #[cfg(target_os = "macos")]
 fn remember_foreground(window: &WebviewWindow) {
     let foreground = macos::frontmost_pid() as isize;
+    let state = window.state::<FocusState>();
+    let mut previous = state.0.lock().unwrap();
     if foreground != std::process::id() as isize {
-        *window.state::<FocusState>().0.lock().unwrap() = foreground;
+        *previous = foreground;
+    } else if settings_window::focused() {
+        *previous = SETTINGS_KEYBOARD;
     }
 }
 
@@ -913,7 +953,7 @@ fn build_tray(app: &App) -> tauri::Result<()> {
         })
         .on_menu_event(move |app, event| match event.id().as_ref() {
             "open" => shell::open(app, None),
-            "settings" => shell::open(app, Some("settings")),
+            "settings" => settings_window::open_settings(app, None),
             "quit" => app.exit(0),
             "autostart" => {
                 // The check item toggles itself on click; read the new state.
@@ -948,6 +988,8 @@ mod tests {
         assert!(ok("timer", "timer_window_close") && !ok("timer", "terminal_write") && !ok("timer", "open_path"));
         assert!(ok("mirror-1", "mirror_picture") && !ok("mirror-1", "vault_reveal"));
         assert!(!ok("plugin", "secret_set") && !ok("", "mirror_picture"));
+        assert!(ok("settings", "secret_set") && ok("settings", "settings_window_section") && ok("settings", "notch_open"));
+        assert!(!ok("settings", "display_apply") && !ok("settings", "keyboard_focus") && !ok("settings", "hotkeys_apply"));
     }
 
     #[test]
