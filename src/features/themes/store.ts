@@ -1,5 +1,6 @@
 import { useMemo } from "react";
 import { createStore } from "../../lib/store";
+import { isNotchWindow } from "../../lib/windowKind";
 import { themeFiles } from "../../platform/services";
 import { settings, updateSettings } from "../../settings/store";
 import { activeThemeId, chooseTheme, nextChange } from "./daynight";
@@ -26,8 +27,11 @@ import {
 import type { Rgba } from "./color";
 import "./themes.css";
 
-/** The editor's unsaved changes, drawn live on the whole panel; kept until saved or discarded, lost on exit. */
-export const draft = createStore<History<ThemeFile> | null>(null);
+/**
+ * The editor's unsaved changes, drawn live on every Crest window; kept until saved or discarded, lost on exit. Saved, so
+ * the notch shows them while the settings window edits, and they outlive that window; the notch drops them when it starts.
+ */
+export const draft = createStore<History<ThemeFile> | null>(null, { persist: "theme-draft" });
 
 const DARK = resolveTheme(BUILT_IN_THEMES[0]);
 /** The Dark theme's tokens, for light text over a dark picture whatever the theme (the Music tool's cover backdrop). */
@@ -91,6 +95,11 @@ function applyFont() {
 }
 
 export function startThemes() {
+  // Unsaved changes last while Crest runs (see `draft`).
+  if (isNotchWindow) {
+    draft.set(null);
+    draftName.set("");
+  }
   apply();
   applyFont();
   scheduleNext();
@@ -154,8 +163,8 @@ export function deleteCustomTheme(id: string) {
 
 // ---------- Editing ----------
 
-/** The name field under the editor; kept here so it survives the settings page being rebuilt. */
-export const draftName = createStore("");
+/** The name field under the editor; saved with the draft, so it survives the settings window being closed. */
+export const draftName = createStore("", { persist: "theme-draft-name" });
 
 export function startEditing(name: string) {
   draftName.set(name);
@@ -164,7 +173,7 @@ export function startEditing(name: string) {
 
 const edit = (key: string, change: (t: ThemeFile) => ThemeFile) => {
   const h = draft.get();
-  if (h) draft.set(record(h, change(h.present), performance.now(), key));
+  if (h) draft.set(record(h, change(h.present), Date.now(), key));
 };
 
 export const editColor = (key: ThemeKey, value: Rgba) => edit(key, (t) => setThemeColor(t, key, value));
