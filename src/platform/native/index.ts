@@ -1,9 +1,27 @@
+import { isNotchWindow } from "../../lib/windowKind";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
+import { getCurrentWebviewWindow } from "@tauri-apps/api/webviewWindow";
 
 /** Is the frontend running in the Tauri app (rather than a regular browser)? */
 export const isNative = "__TAURI_INTERNALS__" in window;
+
+/** The settings window (settings_window.rs). In the browser every member does nothing: the demo keeps the settings in the panel. */
+export const settingsWindow = {
+  /** Opens it, or brings it forward, on `section` (an id of SettingsView's sections). */
+  open: (section: string | null): Promise<void> => (isNative ? invoke("settings_window_open", { section }) : Promise.resolve()),
+  /** The section asked for when the window opened; the page asks once, when it loads. */
+  takeSection: (): Promise<string | null> => (isNative ? invoke<string | null>("settings_window_section") : Promise.resolve(null)),
+  /** A section asked for while the window stays open. On this window only: another window's events do not reach it. */
+  onSection(handler: (section: string) => void): () => void {
+    if (!isNative) return () => {};
+    const off = getCurrentWebviewWindow().listen<string>("settings://section", (e) => handler(e.payload));
+    return () => void off.then((f) => f());
+  },
+  /** Opens the notch from another window, on a tool, as the tray does. */
+  notchOpen: (tab: string | null): Promise<void> => (isNative ? invoke("notch_open", { tab }) : Promise.resolve()),
+};
 
 /** The app on a Mac, where the tools built on Windows APIs are hidden (src/notch/tabs.ts). */
 export const isMac = isNative && navigator.userAgent.includes("Mac");
@@ -85,7 +103,8 @@ export function onTrayOpen(handler: (tab: string | null) => void): () => void {
  * false: focus goes back to the previous app if we still have it.
  */
 export function keyboardFocus(focus: boolean) {
-  if (isNative) void invoke("keyboard_focus", { focus });
+  // The notch's focus only: another window (the Vault's PIN entry in the settings) already has the keyboard.
+  if (isNative && isNotchWindow) void invoke("keyboard_focus", { focus });
 }
 
 /** WebView2 memory target: low while the notch sits closed, normal otherwise. */

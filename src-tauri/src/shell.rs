@@ -249,15 +249,23 @@ pub fn on_shortcut(app: &AppHandle, shortcut: &Shortcut, event: ShortcutEvent) {
     }
 }
 
-/// Tray "Open"/"Settings" and a second launch: bring Crest back if hidden, then open (on `tab`).
+/// Tray "Open": bring Crest back if hidden, then open (on `tab`).
 pub fn open(app: &AppHandle, tab: Option<&str>) {
     display::unhide(app);
     let _ = app.emit("notch://open", tab);
 }
 
-/// A second launch of Crest opens the settings of the running one.
+/// Opens the notch from another window (on `tab`), as the tray does.
+#[tauri::command]
+pub fn notch_open(tab: Option<String>, app: AppHandle) {
+    open(&app, tab.as_deref());
+}
+
+/// A second launch of Crest brings back a Crest hidden with the shortcut and opens the settings window. The notch does
+/// not open, so a "hide" rule keeps hiding it (display::bring_back, not unhide).
 pub fn second_launch(app: &AppHandle) {
-    open(app, Some("settings"));
+    display::bring_back(app);
+    crate::settings_window::open_settings(app, None);
 }
 
 /// Remembers the tray item that shows the open shortcut.

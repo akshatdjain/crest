@@ -1,3 +1,4 @@
+import { isNotchWindow } from "../../lib/windowKind";
 import { useEffect, useState } from "react";
 import { createStore } from "../../lib/store";
 import { playAlarm, stopAlarm } from "../../lib/sound";
@@ -124,10 +125,8 @@ function scheduleEnd() {
     // At most a minute at a time, so a sleep cannot delay the end by its length.
   }, Math.min(60_000, Math.max(0, endsAt - Date.now())));
 }
-/** The detached timer window (timer.html) shows and controls the timer, but only the notch window rings. */
-export const isTimerWindow = location.pathname.endsWith("/timer.html");
-
-if (!isTimerWindow) {
+// The detached timer and the settings window show and control the timer, but only the notch window rings.
+if (isNotchWindow) {
   timer.subscribe(scheduleEnd);
   scheduleEnd();
   // Dismissed or restarted from the detached window: stop the sound here too.
@@ -144,20 +143,6 @@ if (!isTimerWindow) {
   settings.subscribe(syncFocusSound);
   focusMuted.subscribe(syncFocusSound);
 }
-
-// Both windows share the persisted state: adopt what the other window wrote. Writing the same
-// text back to localStorage fires no new event, so this does not loop.
-window.addEventListener("storage", (e) => {
-  if (e.key !== "notch:timer") return;
-  // Read the current value: several writes can arrive as a burst of events.
-  const raw = localStorage.getItem("notch:timer");
-  if (!raw) return;
-  try {
-    timer.set(JSON.parse(raw) as TimerState);
-  } catch {
-    // Broken entry: keep the current state.
-  }
-});
 
 /**
  * Remaining seconds while the timer runs: once per second, on the boundary where the shown

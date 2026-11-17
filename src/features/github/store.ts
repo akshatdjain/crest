@@ -1,3 +1,5 @@
+import { askNotch } from "../../lib/tauriTransport";
+import { isNotchWindow } from "../../lib/windowKind";
 import { useEffect } from "react";
 import { createStore } from "../../lib/store";
 import { rowVisible } from "../../notch/row/visibility";
@@ -22,6 +24,11 @@ let retry: ReturnType<typeof setTimeout> | null = null;
 let retried = false;
 
 export function refreshGithub(force = false): Promise<void> {
+  // The notch fetches; a token saved in the settings window forces it past Rust's cache.
+  if (!isNotchWindow) {
+    askNotch({ kind: "refresh", what: "github", force });
+    return Promise.resolve();
+  }
   const call = ++latest, user = settings.get().github.user.trim();
   askedUser = user.toLowerCase();
   github.set((g) => ({ ...g, loading: true }));

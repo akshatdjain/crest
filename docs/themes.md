@@ -6,7 +6,7 @@ Built in: Dark (the default), Light, One Dark Pro, GitHub Dark, GitHub Light, Dr
 
 ## Changing colours
 
-**Settings › Themes › Colours › Edit** starts from the current theme. Background, foreground, accent, warning and critical each open a colour picker (a square for saturation and brightness, a hue strip, a hex field, arrow keys work on both). Every change shows at once on the whole panel. A new background or foreground also brings new secondary text, tertiary text and menu colours; a background that turns a dark theme light brings a dark foreground if the old one would not read.
+**Settings › Themes › Colours › Edit** starts from the current theme. Background, foreground, accent, warning and critical each open a colour picker (a square for saturation and brightness, a hue strip, a hex field, arrow keys work on both). Every change shows at once in the settings window and on the notch. A new background or foreground also brings new secondary text, tertiary text and menu colours; a background that turns a dark theme light brings a dark foreground if the old one would not read.
 
 **Undo** steps back (a drag across the square is one step), **Discard** drops every change. **Save as new** keeps the changes as a theme of your own; **Overwrite** writes them into the custom theme you started from. Unsaved changes are kept while Crest runs.
 

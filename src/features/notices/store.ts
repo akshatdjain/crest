@@ -1,3 +1,5 @@
+import { askNotch } from "../../lib/tauriTransport";
+import { isNotchWindow } from "../../lib/windowKind";
 import { createStore } from "../../lib/store";
 import { decodeSound, playNotice } from "../../lib/sound";
 import { holdOpen } from "../../notch/useNotchState";
@@ -180,12 +182,15 @@ function whenChanged(send: (off: boolean, apps: string[]) => Promise<unknown>) {
   };
 }
 
-settings.subscribe(() => syncWindows());
-sourceStatus.subscribe(() => {
-  statusSeen = true;
+// The notch alone tells Rust which banners and sounds to keep.
+if (isNotchWindow) {
+  settings.subscribe(() => syncWindows());
+  sourceStatus.subscribe(() => {
+    statusSeen = true;
+    syncWindows();
+  });
   syncWindows();
-});
-syncWindows();
+}
 
 function pop(n: Notice) {
   popping.set(n);
@@ -228,12 +233,9 @@ export function clearHistory() {
   dismissPop();
 }
 
+/** Only writes the rule: the notch drops the notices of an app it hides (startNotices), whichever window set it. */
 export function setAppRule(appId: string, rule: NoticeRule) {
   updateSettings((cur) => ({ notices: { ...cur.notices, rules: setRule(cur.notices.rules, appId, rule) } }));
-  if (rule === "hide") {
-    history.set((list) => removeApp(list, appId));
-    if (popping.get()?.appId.toLowerCase() === appId.toLowerCase()) dismissPop();
-  }
 }
 
 /** Windows refused the access request itself (no prompt); the settings then point to Windows Settings. */
@@ -246,8 +248,13 @@ export async function requestAccess() {
   if (access !== "request-failed") sourceStatus.set((s) => ({ ...s, access }));
 }
 
-/** Reads the sources' state again (the settings page does this when it opens). */
+/**
+ * Reads the sources' state again (the settings page does this when it opens and when its window gets the focus back). The notch
+ * reads it, so it gives Windows' banners and sound back on what it learns and starts a source that waited for access; the
+ * settings window gets the result over the bridge.
+ */
 export function refreshStatus() {
+  if (!isNotchWindow) return askNotch({ kind: "refresh", what: "notices" });
   void noticeSource.status().then((s) => sourceStatus.set(s));
 }
 
@@ -294,6 +301,20 @@ export function startNotices() {
   };
   apply();
   settings.subscribe(apply);
+
+  // An app hidden here or in the settings window leaves the history and the screen; a newly picked sound file is decoded again.
+  let seen = settings.get().notices;
+  settings.subscribe(() => {
+    const now = settings.get().notices;
+    if (now.soundFile !== seen.soundFile) fileSound = null;
+    if (now.rules !== seen.rules) {
+      for (const app of Object.keys(now.rules).filter((a) => now.rules[a] === "hide" && seen.rules[a] !== "hide")) {
+        history.set((list) => removeApp(list, app));
+        if (popping.get()?.appId.toLowerCase() === app) dismissPop();
+      }
+    }
+    seen = now;
+  });
 }
 
 /** Master switch. Turning it on also shows the history page in the tool bar. */

@@ -182,8 +182,8 @@ function readRows(root: HTMLElement): Hit[] {
  * Other tools jump straight to their section via `navigate("settings", "<section>")`.
  */
 export function SettingsView() {
-  const { section } = nav.use();
-  const [page, setPageState] = useState<PageId>(() => (section && sectionPage[section]) || savedPage);
+  const deepLink = nav.use();
+  const [page, setPageState] = useState<PageId>(() => (deepLink.section && sectionPage[deepLink.section]) || savedPage);
   const iconColors = useIconColors();
   const scroller = useRef<HTMLDivElement>(null);
   const setPage = (p: PageId) => {
@@ -251,7 +251,9 @@ export function SettingsView() {
     return () => window.clearTimeout(id);
   }, [target]);
 
+  // On the nav object, not the section: the same section asked for again scrolls again (the settings window stays open).
   useEffect(() => {
+    const { section } = deepLink;
     if (!section || !sectionPage[section]) return;
     setPage(sectionPage[section]);
     // The section only exists after the page switch.
@@ -260,7 +262,7 @@ export function SettingsView() {
       120,
     );
     return () => window.clearTimeout(id);
-  }, [section]);
+  }, [deepLink]);
 
   return (
     <div className="flex h-full gap-3 px-4 pt-1 pb-3">

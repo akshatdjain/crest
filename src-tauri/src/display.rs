@@ -8,7 +8,7 @@
 //! on top" is reapplied in case another app put itself above.
 //!
 //! The hide hotkey (shell.rs) hides Crest on top of that until it is pressed again, the notch is
-//! opened from the tray, or "raise now" runs. Opening on purpose also shows Crest over a "hide" rule
+//! opened from the tray, Crest is launched again or "raise now" runs. Opening on purpose also shows Crest over a "hide" rule
 //! until the notch closes; the floating timer hides and shows with the notch.
 //!
 //! `offset` moves the notch along its edge (dragging), clamped to the monitor. `zoom` is the panel scale:
@@ -64,7 +64,7 @@ pub struct DisplayState {
     user_hidden: AtomicBool,
     /// The rules call for hiding right now.
     rule_hide: AtomicBool,
-    /// Opened on purpose (shortcut, tray, second launch, launcher): shown over `rule_hide` until the notch closes.
+    /// Opened on purpose (shortcut, tray, launcher): shown over `rule_hide` until the notch closes.
     opened: AtomicBool,
     /// The window is hidden right now.
     hidden: AtomicBool,
@@ -76,6 +76,18 @@ pub struct DisplayState {
     fullscreen: AtomicBool,
     /// The monitors (HMONITOR) of other screens where a window calls for hiding or the line, so their mirrors hide.
     pub(crate) mirror_block: Mutex<Vec<isize>>,
+}
+
+impl DisplayState {
+    /// Undoes the hide hotkey and nothing else: a "hide" rule keeps its say, since the notch did not open. True when it was hidden.
+    fn come_back(&self) -> bool {
+        self.user_hidden.swap(false, Ordering::Relaxed)
+    }
+
+    /// Hidden by the hotkey, or by a rule the notch was not opened over.
+    fn hides(&self) -> bool {
+        self.user_hidden.load(Ordering::Relaxed) || (self.rule_hide.load(Ordering::Relaxed) && !self.opened.load(Ordering::Relaxed))
+    }
 }
 
 #[derive(Clone, Deserialize)]
@@ -313,10 +325,7 @@ fn show_quietly(_window: &WebviewWindow) {}
 /// "Raise now": shows Crest if the hide hotkey hid it and puts it on top of the topmost windows.
 #[tauri::command]
 pub fn display_raise(app: AppHandle) {
-    // Not `unhide`: nothing opens here, so a "hide" rule keeps its say.
-    if app.state::<DisplayState>().user_hidden.swap(false, Ordering::Relaxed) {
-        sync(&app);
-    }
+    bring_back(&app);
     let Some(window) = app.get_webview_window("notch") else { return };
     #[cfg(windows)]
     {
@@ -382,8 +391,16 @@ pub fn toggle_user_hidden(app: &AppHandle) {
     sync(app);
 }
 
-/// Opening from the tray, the open hotkey, a second launch or the launcher brings back a Crest hidden with
-/// the hotkey, and shows it over a "hide" rule until the notch closes again.
+/// "Raise now" and a second launch (which opens the settings window, not the notch): bring back a Crest hidden with the
+/// hotkey. Not `unhide`: nothing opens, so a "hide" rule keeps its say.
+pub fn bring_back(app: &AppHandle) {
+    if app.state::<DisplayState>().come_back() {
+        sync(app);
+    }
+}
+
+/// Opening from the tray, the open hotkey or the launcher brings back a Crest hidden with the hotkey, and shows it
+/// over a "hide" rule until the notch closes again.
 pub fn unhide(app: &AppHandle) {
     let state = app.state::<DisplayState>();
     state.user_hidden.store(false, Ordering::Relaxed);
@@ -411,8 +428,7 @@ pub fn is_hidden(app: &AppHandle) -> bool {
 /// Shows or hides the window (and the floating timer with it) to match the hotkey and the rules; only acts on a change.
 fn sync(app: &AppHandle) {
     let state = app.state::<DisplayState>();
-    let rule_hide = state.rule_hide.load(Ordering::Relaxed) && !state.opened.load(Ordering::Relaxed);
-    let hide = state.user_hidden.load(Ordering::Relaxed) || rule_hide;
+    let hide = state.hides();
     if state.hidden.swap(hide, Ordering::Relaxed) == hide {
         return;
     }
@@ -789,6 +805,18 @@ fn is_desktop(hwnd: HWND) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn a_second_launch_leaves_the_rules_their_say() {
+        let state = DisplayState::default();
+        state.user_hidden.store(true, Ordering::Relaxed);
+        state.rule_hide.store(true, Ordering::Relaxed);
+        assert!(state.come_back(), "the hide hotkey's hiding is undone");
+        assert!(!state.user_hidden.load(Ordering::Relaxed));
+        // Nothing opened, so a "hide" rule still hides the notch.
+        assert!(state.hides());
+        assert!(!state.come_back(), "nothing left to undo");
+    }
 
     #[test]
     fn monitors_of_one_model_get_distinct_names_and_the_first_keeps_its_own() {

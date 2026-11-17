@@ -1,3 +1,5 @@
+import { askNotch } from "../../lib/tauriTransport";
+import { isNotchWindow } from "../../lib/windowKind";
 import { createStore } from "../../lib/store";
 import { isMac } from "../../platform/native";
 import { fetchPrivacy, type PrivacyState } from "../../platform/services";
@@ -12,7 +14,7 @@ const POLL_MS = 1500;
 export const privacy = createStore<PrivacyState>({ mic: false, camera: false, screen: false });
 
 /** "Off for now" during an auto-detected recording; resets when the recording ends. */
-const snoozed = createStore(false);
+export const snoozed = createStore(false);
 
 let poll: number | undefined;
 
@@ -36,8 +38,11 @@ function syncPolling() {
     privacy.set({ mic: false, camera: false, screen: false });
   }
 }
-settings.subscribe(syncPolling);
-syncPolling();
+// The notch alone polls; the settings window gets the result through the bridge (src/features/settings/window/shared.ts).
+if (isNotchWindow) {
+  settings.subscribe(syncPolling);
+  syncPolling();
+}
 
 function isPresenting(manual: boolean, auto: boolean, screen: boolean, off: boolean): boolean {
   return manual || (auto && screen && !off);
@@ -62,6 +67,8 @@ export function presentingNow(): boolean {
 
 /** One switch for both cases: during an auto-detected recording "off" only lasts until it ends. */
 export function togglePresentation() {
+  // The notch knows the recording and the snooze: the settings window asks it.
+  if (!isNotchWindow) return askNotch({ kind: "presentation" });
   const { manual, auto } = settings.get().presentation;
   const { screen } = privacy.get();
   if (isPresenting(manual, auto, screen, snoozed.get())) {

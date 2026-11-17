@@ -1,3 +1,4 @@
+import { isNotchWindow } from "../../lib/windowKind";
 import { useEffect, useState } from "react";
 import {
   Cloud,
@@ -239,4 +240,5 @@ export function useForecast(everyMs = 0, on = true): Forecast | null | "error" {
 // On start, only when the weather shows somewhere (its tool or the Overview header): first run or "automatic"
 // → location from IP (detectPlace leaves a hand-picked one alone).
 const shown = settings.get().tools.some((x) => (x.id === "weather" || x.id === "overview") && x.enabled);
-if (shown) void detectPlace();
+// The notch alone looks the place up, and writes it to the settings the other windows follow.
+if (shown && isNotchWindow) void detectPlace();

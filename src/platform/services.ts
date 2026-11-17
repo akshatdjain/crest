@@ -1,3 +1,5 @@
+import { askNotch } from "../lib/tauriTransport";
+import { isNotchWindow } from "../lib/windowKind";
 import { invoke } from "@tauri-apps/api/core";
 import { Channel } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -1628,6 +1630,8 @@ export const backupFiles = {
   open: (): Promise<string | null> => (isNative ? invoke<string | null>("backup_open") : Promise.resolve(null)),
   /** Restarts Crest, which applies a pending restore before anything reads the saved data. */
   restart: async () => {
+    // The notch's window holds the permission to restart: another window asks it.
+    if (!isNotchWindow) return askNotch({ kind: "restart" });
     const { relaunch } = await import("@tauri-apps/plugin-process");
     await relaunch();
   },

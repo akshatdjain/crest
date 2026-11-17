@@ -1,6 +1,9 @@
+import { askNotch } from "../../lib/tauriTransport";
+import { isNotchWindow } from "../../lib/windowKind";
 import { invoke } from "@tauri-apps/api/core";
 import { isNative } from "../../platform/native";
 import { createStore } from "../../lib/store";
+import { lostPair } from "./offline";
 
 /*
  * The offline translator's worker and the files it needs (src-tauri/src/translate.rs, public/translate/worker.js).
@@ -29,13 +32,19 @@ export async function downloadPairs(pairs: [string, string][]) {
   try {
     for (const [from, to] of pairs) if (!hasPair(offlineStatus.get(), [from, to])) await invoke("translate_download", { from, to }).finally(refreshOfflineStatus);
   } finally {
-    refreshOfflineStatus();
+    statusChanged();
   }
 }
 
 export async function removePair([from, to]: [string, string]) {
   closeWorker();
-  await invoke("translate_remove", { from, to }).finally(refreshOfflineStatus);
+  await invoke("translate_remove", { from, to }).finally(statusChanged);
+}
+
+/** Reads the status again; from the settings window the notch, which translates the songs, reads it too (syncOfflineStatus). */
+function statusChanged() {
+  refreshOfflineStatus();
+  if (!isNotchWindow) askNotch({ kind: "refresh", what: "offline" });
 }
 
 let worker: Worker | null = null;
@@ -52,6 +61,18 @@ function closeWorker() {
   inWorker = new Set();
   for (const w of waiting.values()) w.reject(new Error("closed"));
   waiting.clear();
+}
+
+/**
+ * The notch, after the settings window downloaded or removed pairs (or closed in the middle): reads the status, and closes the
+ * worker only when a pair it loaded is gone, so a translation running here is not cut short by a download.
+ */
+export function syncOfflineStatus() {
+  if (!isNative) return;
+  void invoke<OfflineStatus>("translate_status").then((s) => {
+    offlineStatus.set(s);
+    if (lostPair(inWorker, s.pairs)) closeWorker();
+  }, () => {});
 }
 
 const file = (pair: string | null, kind: string) => invoke<ArrayBuffer>("translate_file", { pair, kind });

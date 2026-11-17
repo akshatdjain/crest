@@ -33,6 +33,7 @@ import { startCapture } from "./features/capture/store";
 import { startDownloads } from "./features/downloads/store";
 import { startPlugins } from "./features/plugins/store";
 import { startMeeting } from "./features/meeting/store";
+import { startSettingsBridge } from "./features/settings/window/shared";
 import { demo, showcase } from "./dev/showcase-data";
 import { startShowcase } from "./dev/showcase";
 import { startDemo } from "./dev/demo";
@@ -66,6 +67,7 @@ startCapture();
 startDownloads();
 startPlugins();
 startMeeting();
+startSettingsBridge();
 
 // Send display settings (monitor, fullscreen, offset, window top, gaming) to Rust on start and on every change.
 // The window top follows the style, the capsule's y and the monitor once it has loaded.

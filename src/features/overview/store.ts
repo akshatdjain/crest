@@ -1,3 +1,4 @@
+import { isNotchWindow } from "../../lib/windowKind";
 import { createStore } from "../../lib/store";
 import { isMac } from "../../platform/native";
 import { keepAwake } from "../../platform/services";
@@ -23,5 +24,5 @@ export function stopAwake() {
   if (!isMac) void keepAwake(false, null).catch(() => {});
 }
 
-// A reloaded page starts off, so the backend must too.
-if (!isMac) void keepAwake(false, null).catch(() => {});
+// A reloaded notch starts off, so the backend must too. Another window loading must not end the notch's keep-awake.
+if (!isMac && isNotchWindow) void keepAwake(false, null).catch(() => {});

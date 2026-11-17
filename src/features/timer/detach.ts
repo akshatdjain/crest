@@ -1,6 +1,6 @@
 import { createStore } from "../../lib/store";
 import { closeTimerWindow, onTimerWindow, openTimerWindow } from "../../platform/services";
-import { isTimerWindow } from "./store";
+import { isTimerWindow } from "../../lib/windowKind";
 
 /*
  * Detached timer: a small always-on-top window (timer.html) with the running timer.
