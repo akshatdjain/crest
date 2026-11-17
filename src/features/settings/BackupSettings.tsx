@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { collectBackup, readBackup, scheduleRestore, type Backup, type BackupError } from "../../lib/backup";
-import { restoreResult } from "../../lib/restorePending";
+import { restored as lastRestore } from "./window/shared";
 import { holdOpen } from "../../notch/useNotchState";
 import { isNative } from "../../platform/native";
 import { backupFiles, revealFile, updater } from "../../platform/services";
@@ -36,6 +36,8 @@ async function currentData(): Promise<string> {
  * data it replaces as a backup of its own, then restarts Crest, which applies it before anything reads the data (src/lib/backup.ts).
  */
 export function BackupSettings() {
+  // The notch's restore at start; in the settings window it comes over the bridge.
+  const restoreResult = lastRestore.use();
   const [busy, setBusy] = useState(false);
   const [saved, setSaved] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);

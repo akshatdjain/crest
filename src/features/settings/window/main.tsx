@@ -8,6 +8,9 @@ import { startThemes } from "../../themes/store";
 import { startCrashLog } from "../../window/store";
 import { nav } from "../../../notch/nav";
 import { settingsWindow } from "../../../platform/native";
+import { followStores } from "../../../lib/bridge";
+import { tauriTransport } from "../../../lib/tauriTransport";
+import { sharedStores } from "./shared";
 import { SettingsWindow } from "./SettingsWindow";
 
 /*
@@ -34,7 +37,9 @@ window.addEventListener("keydown", (e) => {
   if (e.key === "F5" || e.key === "F7" || e.key === "F12" || (e.ctrlKey && ["r", "p", "f", "j", "u", "s"].includes(e.key.toLowerCase()))) e.preventDefault();
 });
 
-// The section asked for when the window opened, and the ones asked for while it stays open.
+// What only the notch knows (update, shortcuts, readings), over the bridge; then the section asked for when the window opened,
+// and the ones asked for while it stays open.
+followStores(tauriTransport, sharedStores);
 void settingsWindow.takeSection().then((section) => section && nav.set({ tabId: "settings", section }));
 settingsWindow.onSection((section) => nav.set({ tabId: "settings", section }));
 

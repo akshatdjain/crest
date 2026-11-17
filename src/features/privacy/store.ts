@@ -13,7 +13,7 @@ const POLL_MS = 1500;
 export const privacy = createStore<PrivacyState>({ mic: false, camera: false, screen: false });
 
 /** "Off for now" during an auto-detected recording; resets when the recording ends. */
-const snoozed = createStore(false);
+export const snoozed = createStore(false);
 
 let poll: number | undefined;
 
