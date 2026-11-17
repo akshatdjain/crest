@@ -888,7 +888,7 @@ function Display() {
       {d.focusClicks && (
         <Row
           label={t("Fokus-Darstellung")}
-          hint={d.focusStyle === "line" ? t("Nur eine dünne Linie am Rand, ohne Musik und Co.") : t("Halb durchsichtig, Musik und Co. bleiben sichtbar")}
+          hint={d.focusStyle === "line" ? t("Nur eine dünne Linie am Rand, ohne Musik und Co.") : t("Halb durchsichtig")}
         >
           <Segmented
             id="focus-style"
