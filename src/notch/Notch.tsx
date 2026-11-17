@@ -41,6 +41,8 @@ import { drop, takeDropped } from "../platform/drop";
 import { hoverDelayMs, settings } from "../settings/store";
 import { useUnseen } from "../lib/changelog";
 import { nav, navigate, openOn, takeOpenTarget } from "./nav";
+import { navRoute } from "./navRoute";
+import { windowKind } from "../lib/windowKind";
 import { update } from "../lib/update";
 import { findOnScreenTab, findTab, pageTabs, settingsTab, setupTab, tabs, type NotchTab } from "./tabs";
 import { scanScreens } from "../features/find/store";
@@ -345,6 +347,8 @@ export function Notch() {
 
   /** Opens on `tab` (null = as usual). */
   const openOn = (tab: string | null) => {
+    // The settings open in their window, not in the notch; trayTab stays unset, so the next open does not go there again.
+    if (tab && navRoute(tab, windowKind, isNative) === "settings-window") return navigate(tab);
     // Only remember it while opening, otherwise it would stick for the next open.
     trayTab.current = status === "open" ? null : tab;
     if (tab) navigate(tab);
