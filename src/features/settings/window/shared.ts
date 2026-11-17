@@ -12,12 +12,13 @@ import { monitor, monitors } from "../../../notch/monitor";
 import { pinned } from "../../../notch/useNotchState";
 import { isNative } from "../../../platform/native";
 import { backupFiles } from "../../../platform/services";
+import { vault } from "../../../platform/vault";
 import { calendar, refreshCalendar } from "../../calendar/store";
 import { discordState, reconnectDiscord } from "../../discord/store";
 import { github, refreshGithub } from "../../github/store";
 import { hotkeysResting, shortcutResult } from "../../launcher/store";
 import { leetcode, refreshLeetcode } from "../../leetcode/store";
-import { closeWorker, refreshOfflineStatus } from "../../now-playing/offlineEngine";
+import { syncOfflineStatus } from "../../now-playing/offlineEngine";
 import { plugins, refreshPlugins } from "../../plugins/store";
 import { privacy, snoozed, togglePresentation } from "../../privacy/store";
 import { system } from "../../system/store";
@@ -69,6 +70,9 @@ function run(action: BridgeAction) {
       return void installUpdate();
     case "restart":
       return void backupFiles.restart();
+    case "lockVault":
+      // No vault on a Mac: its command is missing there.
+      return void vault.lock().catch(() => {});
     case "refresh":
       return void refreshers[action.what](action.force);
   }
@@ -81,11 +85,7 @@ const refreshers: Record<Extract<BridgeAction, { kind: "refresh" }>["what"], (fo
   calendar: refreshCalendar,
   discord: reconnectDiscord,
   plugins: refreshPlugins,
-  // A pair downloaded or removed in the window: the notch reads the status again and loads the models afresh.
-  offline: () => {
-    refreshOfflineStatus();
-    closeWorker();
-  },
+  offline: syncOfflineStatus,
 };
 
 /**

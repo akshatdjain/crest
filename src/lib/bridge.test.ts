@@ -80,6 +80,25 @@ test("only the known actions reach the notch", () => {
   assert.deepEqual(ran, [{ kind: "refresh", what: "github", force: true }]);
 });
 
+test("a vault lock reaches the notch", () => {
+  const bus = memoryBus();
+  const ran: unknown[] = [];
+  onActions(bus, (a) => ran.push(a));
+  sendAction(bus, { kind: "lockVault" });
+  assert.deepEqual(ran, [{ kind: "lockVault" }]);
+});
+
 test("closing_the_settings_window_resumes_hotkeys", () => {
-  assert.deepEqual(settingsClosedActions(), [{ kind: "pauseHotkeys", on: false }]);
+  assert.ok(settingsClosedActions().some((a) => a.kind === "pauseHotkeys" && a.on === false));
+});
+
+test("closing the settings window locks the vault and reads again what the window may have changed", () => {
+  // A closed window runs no React cleanup and no loop of its own: the vault it unlocked, a translation pair or a plugin it
+  // was installing are settled here.
+  assert.deepEqual(settingsClosedActions(), [
+    { kind: "pauseHotkeys", on: false },
+    { kind: "lockVault" },
+    { kind: "refresh", what: "offline" },
+    { kind: "refresh", what: "plugins" },
+  ]);
 });

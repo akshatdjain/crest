@@ -67,6 +67,7 @@ export type BridgeAction =
   | { kind: "checkUpdate" }
   | { kind: "installUpdate" }
   | { kind: "restart" }
+  | { kind: "lockVault" }
   | { kind: "refresh"; what: Refresh; force?: boolean };
 
 export function sendAction(t: Transport, action: BridgeAction) {
@@ -93,6 +94,7 @@ function asAction(payload: unknown): BridgeAction | null {
     case "checkUpdate":
     case "installUpdate":
     case "restart":
+    case "lockVault":
       return { kind: a.kind };
     case "refresh": {
       const what = REFRESH.find((w) => w === a.what);

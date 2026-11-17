@@ -3,6 +3,7 @@ import { isNotchWindow } from "../../lib/windowKind";
 import { invoke } from "@tauri-apps/api/core";
 import { isNative } from "../../platform/native";
 import { createStore } from "../../lib/store";
+import { lostPair } from "./offline";
 
 /*
  * The offline translator's worker and the files it needs (src-tauri/src/translate.rs, public/translate/worker.js).
@@ -40,7 +41,7 @@ export async function removePair([from, to]: [string, string]) {
   await invoke("translate_remove", { from, to }).finally(statusChanged);
 }
 
-/** Reads the status again; from the settings window the notch, which translates the songs, reads it too and closes its worker. */
+/** Reads the status again; from the settings window the notch, which translates the songs, reads it too (syncOfflineStatus). */
 function statusChanged() {
   refreshOfflineStatus();
   if (!isNotchWindow) askNotch({ kind: "refresh", what: "offline" });
@@ -53,13 +54,25 @@ let idle = 0;
 let nextId = 0;
 const waiting = new Map<number, { resolve: (lines: string[]) => void; reject: (e: Error) => void }>();
 
-export function closeWorker() {
+function closeWorker() {
   window.clearTimeout(idle);
   worker?.terminate();
   worker = null;
   inWorker = new Set();
   for (const w of waiting.values()) w.reject(new Error("closed"));
   waiting.clear();
+}
+
+/**
+ * The notch, after the settings window downloaded or removed pairs (or closed in the middle): reads the status, and closes the
+ * worker only when a pair it loaded is gone, so a translation running here is not cut short by a download.
+ */
+export function syncOfflineStatus() {
+  if (!isNative) return;
+  void invoke<OfflineStatus>("translate_status").then((s) => {
+    offlineStatus.set(s);
+    if (lostPair(inWorker, s.pairs)) closeWorker();
+  }, () => {});
 }
 
 const file = (pair: string | null, kind: string) => invoke<ArrayBuffer>("translate_file", { pair, kind });
