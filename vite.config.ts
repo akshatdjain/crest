@@ -16,8 +16,13 @@ export default defineConfig(({ mode }) => ({
     },
   ],
   clearScreen: false,
-  // More pages: the detached timer window and the copies of the closed notch on other monitors (the demo has neither).
-  build: { rollupOptions: { input: { main: "index.html", ...(mode === "demo" ? {} : { timer: "timer.html", mirror: "mirror.html" }) } as Record<string, string> } },
+  // More pages: the detached timer window, the copies of the closed notch on other monitors and the settings window (the
+  // demo has none of them).
+  build: {
+    rollupOptions: {
+      input: { main: "index.html", ...(mode === "demo" ? {} : { timer: "timer.html", mirror: "mirror.html", settings: "settings.html" }) } as Record<string, string>,
+    },
+  },
   server: {
     port: 1420,
     strictPort: true,

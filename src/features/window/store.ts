@@ -82,7 +82,7 @@ function applyHotkeys() {
 }
 
 /** Uncaught errors in the page go to crash.log (shell.rs); a few per session, so a loop can't flood it. */
-function startCrashLog() {
+export function startCrashLog() {
   let left = 20;
   const log = (text: string) => left-- > 0 && windowShell.crashLog(text);
   window.addEventListener("error", (e) => {
