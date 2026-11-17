@@ -1,3 +1,4 @@
+import { isNotchWindow } from "../../lib/windowKind";
 import { createStore } from "../../lib/store";
 import { isMac } from "../../platform/native";
 import { fetchPrivacy, type PrivacyState } from "../../platform/services";
@@ -36,8 +37,11 @@ function syncPolling() {
     privacy.set({ mic: false, camera: false, screen: false });
   }
 }
-settings.subscribe(syncPolling);
-syncPolling();
+// The notch alone polls; the settings window gets the result through the bridge (src/features/settings/window/shared.ts).
+if (isNotchWindow) {
+  settings.subscribe(syncPolling);
+  syncPolling();
+}
 
 function isPresenting(manual: boolean, auto: boolean, screen: boolean, off: boolean): boolean {
   return manual || (auto && screen && !off);

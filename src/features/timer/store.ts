@@ -1,3 +1,4 @@
+import { isNotchWindow } from "../../lib/windowKind";
 import { useEffect, useState } from "react";
 import { createStore } from "../../lib/store";
 import { playAlarm, stopAlarm } from "../../lib/sound";
@@ -124,10 +125,8 @@ function scheduleEnd() {
     // At most a minute at a time, so a sleep cannot delay the end by its length.
   }, Math.min(60_000, Math.max(0, endsAt - Date.now())));
 }
-/** The detached timer window (timer.html) shows and controls the timer, but only the notch window rings. */
-export const isTimerWindow = location.pathname.endsWith("/timer.html");
-
-if (!isTimerWindow) {
+// The detached timer and the settings window show and control the timer, but only the notch window rings.
+if (isNotchWindow) {
   timer.subscribe(scheduleEnd);
   scheduleEnd();
   // Dismissed or restarted from the detached window: stop the sound here too.

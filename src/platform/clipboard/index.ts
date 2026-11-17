@@ -1,3 +1,4 @@
+import { isNotchWindow } from "../../lib/windowKind";
 import { useSyncExternalStore } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
@@ -48,8 +49,11 @@ function createNative(): ClipboardSource {
     items = next;
     listeners.forEach((l) => l());
   };
-  void invoke<ClipItem[]>("clipboard_list").then(set);
-  void listen<ClipItem[]>("clipboard://update", (e) => set(e.payload));
+  // Only the notch keeps the history; another window would load every thumbnail for nothing.
+  if (isNotchWindow) {
+    void invoke<ClipItem[]>("clipboard_list").then(set);
+    void listen<ClipItem[]>("clipboard://update", (e) => set(e.payload));
+  }
 
   return {
     get: () => items,

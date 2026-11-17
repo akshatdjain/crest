@@ -1,3 +1,4 @@
+import { isNotchWindow } from "../../lib/windowKind";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { accentFrom } from "../../lib/accent";
@@ -77,8 +78,11 @@ export function createNativeMedia(): MediaSource {
     }
   };
 
-  void invoke<NativeNowPlaying | null>("media_get").then(apply);
-  void listen<NativeNowPlaying | null>("media://update", (e) => apply(e.payload));
+  // Only the notch follows the playing song (and works out its colours); the controls below work from any window.
+  if (isNotchWindow) {
+    void invoke<NativeNowPlaying | null>("media_get").then(apply);
+    void listen<NativeNowPlaying | null>("media://update", (e) => apply(e.payload));
+  }
 
   // React immediately instead of waiting for GSMTC (~400 ms); Rust corrects afterwards.
   const optimistic = (patch: Partial<NowPlaying>) => {

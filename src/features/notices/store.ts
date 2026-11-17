@@ -1,3 +1,4 @@
+import { isNotchWindow } from "../../lib/windowKind";
 import { createStore } from "../../lib/store";
 import { decodeSound, playNotice } from "../../lib/sound";
 import { holdOpen } from "../../notch/useNotchState";
@@ -180,12 +181,15 @@ function whenChanged(send: (off: boolean, apps: string[]) => Promise<unknown>) {
   };
 }
 
-settings.subscribe(() => syncWindows());
-sourceStatus.subscribe(() => {
-  statusSeen = true;
+// The notch alone tells Rust which banners and sounds to keep.
+if (isNotchWindow) {
+  settings.subscribe(() => syncWindows());
+  sourceStatus.subscribe(() => {
+    statusSeen = true;
+    syncWindows();
+  });
   syncWindows();
-});
-syncWindows();
+}
 
 function pop(n: Notice) {
   popping.set(n);

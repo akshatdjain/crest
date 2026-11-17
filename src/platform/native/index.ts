@@ -1,3 +1,4 @@
+import { isNotchWindow } from "../../lib/windowKind";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getCurrentWindow } from "@tauri-apps/api/window";
@@ -85,7 +86,8 @@ export function onTrayOpen(handler: (tab: string | null) => void): () => void {
  * false: focus goes back to the previous app if we still have it.
  */
 export function keyboardFocus(focus: boolean) {
-  if (isNative) void invoke("keyboard_focus", { focus });
+  // The notch's focus only: another window (the Vault's PIN entry in the settings) already has the keyboard.
+  if (isNative && isNotchWindow) void invoke("keyboard_focus", { focus });
 }
 
 /** WebView2 memory target: low while the notch sits closed, normal otherwise. */
