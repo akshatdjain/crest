@@ -8,7 +8,7 @@ import { PrivacyDots, usePrivacyDots } from "../features/privacy/PrivacyDots";
 import { privacy, usePresenting } from "../features/privacy/store";
 import { fullscreen, useGamingLive } from "../features/system/gaming";
 import { focusMode, setFocusMode } from "./focus";
-import { togglesFocus } from "./focusRules";
+import { clickOpens, focusLine, startsOnNotch, togglesFocus } from "./focusRules";
 import { dragArea, edgeOf, placementKey, useDragToMove, viewLine, windowLength, windowY } from "./drag";
 import { useLiveActivity } from "./live";
 import { CompactRow } from "./row/CompactRow";
@@ -293,7 +293,7 @@ export function Notch() {
   const bridged = hasBridge(style, capY, workTop);
   const winTop = isNative ? windowY(capY) : windowYFor(style, capY, viewH, workTop);
   const capsuleTop = style === "capsule" ? capY - winTop : surface === "capsule" ? lineCapsuleY(capY, workTop) - winTop : 0;
-  const lineShape = line || (lineIdle && status !== "open");
+  const lineShape = line || (status !== "open" && (lineIdle || (focus && focusLine(displaySettings.focusStyle, idleStyle === "line", noticeTime))));
   // Open, a bridged capsule hangs from the edge like the notch; a floating one opens from its top, moved up as far as the panel needs (a notice card the same, so it stays in the window).
   // The line's distance from the edge is a place on the screen, saved at 100 % like display.y.
   const shapeTop = status !== "open" ? (lineShape ? toPageCss(sizes.lineTop, behavior.scale) : notice ? panelTop(capsuleTop, shapeH) : capsuleTop) : bridged ? 0 : panelTop(capsuleTop, size.h);
@@ -356,15 +356,28 @@ export function Notch() {
     if (focus && status === "open") setFocusMode(false);
   }, [focus, status]);
 
-  // Three quick clicks toggle focus mode while its switch is on (in the browser also off; natively Rust counts those).
+  // Three quick clicks toggle focus mode while its switch is on (natively Rust counts the ones that leave it). A series is judged by its
+  // first click (focusRules.ts): begun on the notch, its later clicks never reach the panel, and the third puts focus mode the other way
+  // from how the series found it, so a series that leaves cannot enter again.
+  const series = useRef({ onNotch: false, enter: true });
+  const onClickCapture = (e: React.MouseEvent) => {
+    if (drag.moved() || editing) return;
+    if (e.detail <= 1) {
+      const onHeader = e.target instanceof Element && !!e.target.closest("[data-drag-handle]");
+      series.current = { onNotch: startsOnNotch(status === "open", onHeader, isInteractive(e.target)), enter: !focus };
+      return;
+    }
+    if (!displaySettings.focusClicks || !series.current.onNotch) return;
+    e.stopPropagation();
+    if (!togglesFocus(e.detail, true, true)) return;
+    // Closed first: the first click opened the panel, and an open panel ends focus mode (above).
+    if (series.current.enter) close();
+    setFocusMode(series.current.enter);
+  };
   const onClick = (e: React.MouseEvent) => {
     if (drag.moved() || editing) return;
-    if (togglesFocus(e.detail, displaySettings.focusClicks, isInteractive(e.target))) {
-      // Closed first: the first of the clicks may have opened the panel, and an open panel ends focus mode (above).
-      if (!focus) close();
-      return setFocusMode(!focus);
-    }
-    if (focus || status === "open") return;
+    // In focus mode the closed notch takes no click, a card does: its click opens the notch, which ends focus mode.
+    if (!clickOpens(status === "open", focus, noticeTime)) return;
     // A click on a part of the closed row opens its tool (a click elsewhere, as usual).
     const part = partTarget(e);
     if (part) openOn(part);
@@ -574,6 +587,7 @@ export function Notch() {
           pointed.current = { tool: null, at: 0 };
           if (!isNative && !focus) onPointerLeave();
         }}
+        onClickCapture={onClickCapture}
         onClick={onClick}
         onContextMenu={onContextMenu}
         onWheel={onWheel}
