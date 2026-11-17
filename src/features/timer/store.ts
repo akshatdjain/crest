@@ -145,20 +145,6 @@ if (!isTimerWindow) {
   focusMuted.subscribe(syncFocusSound);
 }
 
-// Both windows share the persisted state: adopt what the other window wrote. Writing the same
-// text back to localStorage fires no new event, so this does not loop.
-window.addEventListener("storage", (e) => {
-  if (e.key !== "notch:timer") return;
-  // Read the current value: several writes can arrive as a burst of events.
-  const raw = localStorage.getItem("notch:timer");
-  if (!raw) return;
-  try {
-    timer.set(JSON.parse(raw) as TimerState);
-  } catch {
-    // Broken entry: keep the current state.
-  }
-});
-
 /**
  * Remaining seconds while the timer runs: once per second, on the boundary where the shown
  * second changes, or every 200 ms with `fast` (looks with tenths).
