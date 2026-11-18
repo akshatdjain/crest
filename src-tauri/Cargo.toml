@@ -63,6 +63,8 @@ reqwest = { version = "0.13", default-features = false, features = ["rustls"] }
 gtk = "0.18"
 # The camera permission of the webview (src/linux/camera.rs). Already in the tree through tauri.
 webkit2gtk = "2"
+# Events instead of polling (src/linux/events.rs): a camera device being opened.
+inotify = "0.11"
 # Music (src/linux/media.rs, MPRIS), the saved keys (secrets.rs, Secret Service) and the file pickers (picker.rs, the XDG portal):
 # all talk to the desktop over D-Bus. zbus is already in the tree through tauri.
 zbus = "5"
