@@ -17,9 +17,10 @@ use std::time::{Duration, Instant};
 use base64::Engine;
 use serde::Serialize;
 use tauri::{AppHandle, Emitter, Manager, State};
-use zbus::blocking::fdo::MonitoringProxy;
+use zbus::blocking::fdo::{DBusProxy, MonitoringProxy};
 use zbus::blocking::{Connection, MessageIterator, Proxy};
 use zbus::message::Type as MessageType;
+use zbus::names::{BusName, UniqueName};
 use zbus::zvariant::OwnedValue;
 use zbus::MatchRule;
 
@@ -268,26 +269,50 @@ fn read_call(message: &zbus::Message) -> Option<(Raw, Option<String>)> {
     Some((raw, icon))
 }
 
-/// Watches the bus until `keep_going` says to stop (checked on each message), telling `on_in` about each notice and `on_gone` about
-/// each notification the desktop closed.
-fn monitor(mut on_in: impl FnMut(NoticeIn), mut on_gone: impl FnMut(u32), keep_going: impl Fn() -> bool) -> Result<(), String> {
-    let conn = Connection::session().map_err(|e| e.to_string())?;
-    let rule = |kind, member: Option<&'static str>| -> Result<MatchRule<'static>, String> {
-        let b = MatchRule::builder().msg_type(kind);
-        match member {
-            Some(m) => b.interface(NOTIFICATIONS).and_then(|b| b.member(m)).map(|b| b.build()),
-            None => Ok(b.build()),
-        }
-        .map_err(|e| e.to_string())
+/// What the monitor is told about, and from whom: the notification daemon's traffic and nothing else. A rule for every method
+/// return on the bus would hand Crest every reply every app gets, the keyring's included, so each rule names the daemon.
+fn rules(owner: &str) -> Result<Vec<MatchRule<'static>>, String> {
+    let owner = UniqueName::try_from(owner.to_string()).map_err(|e| e.to_string())?;
+    let built = || -> Result<Vec<MatchRule<'static>>, zbus::Error> {
+        Ok(vec![
+            // Calls to Notify, sent to the daemon.
+            MatchRule::builder().msg_type(MessageType::MethodCall).interface(NOTIFICATIONS)?.member("Notify")?.destination(owner.clone())?.build(),
+            // Its answers, which carry the id of the notification just sent.
+            MatchRule::builder().msg_type(MessageType::MethodReturn).sender(owner.clone())?.build(),
+            MatchRule::builder().msg_type(MessageType::Signal).sender(owner.clone())?.interface(NOTIFICATIONS)?.member("NotificationClosed")?.build(),
+            // The daemon going away or being replaced: the rules above name its bus name, so the watch starts over.
+            MatchRule::builder().msg_type(MessageType::Signal).sender("org.freedesktop.DBus")?.interface("org.freedesktop.DBus")?.member("NameOwnerChanged")?.arg(0, NOTIFICATIONS)?.build(),
+        ])
     };
-    // Calls to Notify, every answer (to find the id of the notification just sent), and the closing of notifications.
-    let rules = [rule(MessageType::MethodCall, Some("Notify"))?, rule(MessageType::MethodReturn, None)?, rule(MessageType::Signal, Some("NotificationClosed"))?];
+    built().map_err(|e| e.to_string())
+}
+
+/// The bus name the notification daemon has right now.
+fn daemon_owner() -> Result<String, String> {
+    let conn = Connection::session().map_err(|e| e.to_string())?;
+    let proxy = DBusProxy::new(&conn).map_err(|e| e.to_string())?;
+    let name = BusName::try_from(NOTIFICATIONS).map_err(|e| e.to_string())?;
+    let owner = proxy.get_name_owner(name).map_err(|_| "no notification daemon".to_string())?;
+    Ok(owner.to_string())
+}
+
+enum Watched {
+    Stop,
+    /// The daemon changed: look it up again.
+    DaemonChanged,
+}
+
+/// One watch of the daemon as it is now.
+fn watch(on_in: &mut impl FnMut(NoticeIn), on_gone: &mut impl FnMut(u32), keep_going: &impl Fn() -> bool) -> Result<Watched, String> {
+    let rules = rules(&daemon_owner()?)?;
+    // A monitor can send nothing, and BecomeMonitor works once per connection: this one is only for watching.
+    let conn = Connection::session().map_err(|e| e.to_string())?;
     MonitoringProxy::new(&conn).map_err(|e| e.to_string())?.become_monitor(&rules, 0).map_err(|e| e.to_string())?;
 
     let mut pending: HashMap<(String, u32), Pending> = HashMap::new();
     for message in MessageIterator::from(conn) {
         if !keep_going() {
-            return Ok(());
+            return Ok(Watched::Stop);
         }
         let Ok(message) = message else { continue };
         let header = message.header();
@@ -307,15 +332,30 @@ fn monitor(mut on_in: impl FnMut(NoticeIn), mut on_gone: impl FnMut(u32), keep_g
                     on_in(notice);
                 }
             }
-            MessageType::Signal => {
-                if let Ok((id, _reason)) = message.body().deserialize::<(u32, u32)>() {
-                    on_gone(id);
+            MessageType::Signal => match header.member().map(|m| m.as_str()) {
+                Some("NameOwnerChanged") => return Ok(Watched::DaemonChanged),
+                Some("NotificationClosed") => {
+                    if let Ok((id, _reason)) = message.body().deserialize::<(u32, u32)>() {
+                        on_gone(id);
+                    }
                 }
-            }
+                _ => {}
+            },
             _ => {}
         }
     }
-    Ok(())
+    Ok(Watched::Stop)
+}
+
+/// Watches until `keep_going` says to stop (checked on each message), telling `on_in` about each notice and `on_gone` about each
+/// notification the desktop closed. A daemon that is replaced while this runs is picked up again.
+fn monitor(mut on_in: impl FnMut(NoticeIn), mut on_gone: impl FnMut(u32), keep_going: impl Fn() -> bool) -> Result<(), String> {
+    loop {
+        match watch(&mut on_in, &mut on_gone, &keep_going)? {
+            Watched::Stop => return Ok(()),
+            Watched::DaemonChanged => thread::sleep(Duration::from_millis(500)),
+        }
+    }
 }
 
 // ---- commands -------------------------------------------------------------------------------------------------------
@@ -458,6 +498,60 @@ mod tests {
         stop.store(true, Ordering::Relaxed);
         let _ = daemon.call_method("GetCapabilities", &());
         let _ = watcher.join();
+    }
+
+    #[test]
+    fn every_rule_names_the_daemon_and_no_reply_is_taken_from_anyone_else() {
+        let rules = rules(":1.42").unwrap();
+        assert_eq!(rules.len(), 4);
+        let texts: Vec<String> = rules.iter().map(|r| r.to_string()).collect();
+        for t in &texts {
+            assert!(t.contains("sender=") || t.contains("destination="), "a rule that is open to everyone: {t}");
+        }
+        let returns: Vec<&String> = texts.iter().filter(|t| t.contains("method_return")).collect();
+        assert_eq!(returns.len(), 1);
+        assert!(returns[0].contains("sender=':1.42'"), "{}", returns[0]);
+        assert!(rules_for_bad_name().is_err());
+    }
+
+    fn rules_for_bad_name() -> Result<Vec<MatchRule<'static>>, String> {
+        rules("not a bus name")
+    }
+
+    /// Other services' traffic (the bus itself, the keyring) is sent while the monitor listens, and none of their replies may arrive; the
+    /// daemon's own, for a real notification, must. `cargo test -- --ignored --nocapture linux::notices`
+    #[test]
+    #[ignore = "uses the live session bus and shows a banner"]
+    fn the_monitor_gets_the_daemons_traffic_and_no_other_apps_replies() {
+        let owner = daemon_owner().unwrap();
+        let conn = Connection::session().unwrap();
+        MonitoringProxy::new(&conn).unwrap().become_monitor(&rules(&owner).unwrap(), 0).unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        thread::spawn(move || {
+            for m in MessageIterator::from(conn).flatten() {
+                let h = m.header();
+                let _ = tx.send((h.message_type(), h.sender().map(|s| s.to_string()), h.member().map(|m| m.to_string())));
+            }
+        });
+        thread::sleep(Duration::from_millis(800));
+        let probe = Connection::session().unwrap();
+        let bus = Proxy::new(&probe, "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus").unwrap();
+        let _ = bus.call_method("ListNames", &());
+        // The keyring answers a call too, if it runs.
+        let _ = Proxy::new(&probe, "org.freedesktop.secrets", "/org/freedesktop/secrets", "org.freedesktop.DBus.Peer").and_then(|p| p.call_method("Ping", &()));
+        let daemon = Proxy::new(&probe, NOTIFICATIONS, "/org/freedesktop/Notifications", NOTIFICATIONS).unwrap();
+        let hints: HashMap<&str, zbus::zvariant::Value> = HashMap::new();
+        let id: u32 = daemon.call_method("Notify", &("Crest rule test", 0u32, "", "Rule test", "not a secret", Vec::<&str>::new(), hints, 2000i32)).unwrap().body().deserialize().unwrap();
+        thread::sleep(Duration::from_millis(1200));
+        let seen: Vec<_> = rx.try_iter().collect();
+        println!("seen {} messages: {:?}", seen.len(), seen);
+        assert!(seen.iter().any(|(t, _, m)| *t == MessageType::MethodCall && m.as_deref() == Some("Notify")), "the Notify call was not seen");
+        let replies: Vec<_> = seen.iter().filter(|(t, _, _)| *t == MessageType::MethodReturn).collect();
+        assert!(!replies.is_empty(), "the daemon's answer was not seen");
+        for (_, sender, _) in &replies {
+            assert_eq!(sender.as_deref(), Some(owner.as_str()), "a reply from another service reached the monitor");
+        }
+        let _ = daemon.call_method("CloseNotification", &(id,));
     }
 
     #[test]
