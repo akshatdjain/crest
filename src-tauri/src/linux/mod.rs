@@ -7,6 +7,7 @@ pub mod camera;
 pub mod capture;
 pub mod clipboard;
 pub mod controls;
+pub mod files;
 pub mod idle;
 pub mod input;
 pub mod media;

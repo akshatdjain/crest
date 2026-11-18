@@ -8,6 +8,10 @@
 //!
 //! The pet's nest beside the notch has a zone of its own: the window takes the pointer there too, without the
 //! notch's hover, and `notch://pet-hover` says when the pointer comes onto it and leaves.
+//!
+//! Linux does not poll: a Wayland client cannot read the pointer, so the window's input shape is the hit zone (linux/input.rs) and
+//! the poll below is never started there.
+#![cfg_attr(target_os = "linux", allow(dead_code))]
 
 use std::sync::atomic::{AtomicBool, AtomicU64, AtomicU8, Ordering};
 use std::sync::Mutex;

@@ -179,13 +179,16 @@ pub(crate) fn open_url(url: &str) -> Result<(), String> {
 }
 
 /// Opens files and folders: Explorer on Windows, by its full path, since a bare "explorer" is looked up next
-/// to crest.exe first, and a portable copy's folder may be one other users can write to. `open` on a Mac.
+/// to crest.exe first, and a portable copy's folder may be one other users can write to. `open` on a Mac, `xdg-open` on Linux (where
+/// `open` is a different program: the virtual-terminal tool).
 pub(crate) fn opener() -> std::process::Command {
     if cfg!(windows) {
         let root = std::env::var_os("SystemRoot").unwrap_or_else(|| r"C:\Windows".into());
         std::process::Command::new(std::path::Path::new(&root).join("explorer.exe"))
-    } else {
+    } else if cfg!(target_os = "macos") {
         std::process::Command::new("open")
+    } else {
+        std::process::Command::new("xdg-open")
     }
 }
 
@@ -797,6 +800,8 @@ fn remember_foreground(window: &WebviewWindow) {
     }
 }
 
+// Only the pointer poll of hit_test.rs calls it, and Linux does not run that.
+#[cfg_attr(target_os = "linux", allow(dead_code))]
 #[cfg(any(target_os = "macos", target_os = "linux"))]
 fn remember_foreground(window: &WebviewWindow) {
     let foreground = native::frontmost_pid() as isize;
