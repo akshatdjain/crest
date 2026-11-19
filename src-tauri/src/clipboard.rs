@@ -502,11 +502,21 @@ fn is_url(text: &str) -> bool {
         && (text.starts_with("http://") || text.starts_with("https://") || text.starts_with("www."))
 }
 
+/// The same text, or the same picture: copying an entry back from the history must not add it a second time. Pictures are
+/// compared by size and PNG bytes, which is exact because the encoder gives the same bytes for the same pixels.
+fn same(a: &Content, b: &Content) -> bool {
+    match (a, b) {
+        (Content::Text(a), Content::Text(b)) => a == b,
+        (Content::Image(a), Content::Image(b)) => a.width == b.width && a.height == b.height && a.png == b.png,
+        _ => false,
+    }
+}
+
 fn add(state: &ClipboardState, content: Content) {
-    // Same text copied again: move the existing entry to the top.
-    if let Content::Text(new) = &content {
+    // Same text or picture copied again: move the existing entry to the top.
+    if matches!(content, Content::Text(_) | Content::Image(_)) {
         let mut entries = state.entries.lock().unwrap();
-        if let Some(i) = entries.iter().position(|e| matches!(&e.content, Content::Text(t) if t == new)) {
+        if let Some(i) = entries.iter().position(|e| same(&e.content, &content)) {
             let mut entry = entries.remove(i);
             entry.item.copied_at = now_ms();
             entries.insert(0, entry);
@@ -616,6 +626,17 @@ fn emit(app: &AppHandle, state: &ClipboardState) {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn the_same_text_or_picture_is_one_entry() {
+        let image = |png: &[u8]| Content::Image(StoredImage { width: 2, height: 1, png: png.to_vec(), thumbnail: String::new() });
+        assert!(same(&image(b"a"), &image(b"a")));
+        assert!(!same(&image(b"a"), &image(b"b")), "other pixels");
+        assert!(!same(&image(b"a"), &Content::Text("a".into())));
+        assert!(same(&Content::Text("x".into()), &Content::Text("x".into())));
+        let other_size = Content::Image(StoredImage { width: 1, height: 2, png: b"a".to_vec(), thumbnail: String::new() });
+        assert!(!same(&image(b"a"), &other_size));
+    }
+
     use super::*;
 
     /// A UI-like tile: flat panels with rows of pseudo-random "glyphs" (fixed seed), like a window of text.
