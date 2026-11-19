@@ -1074,11 +1074,18 @@ function useNativeBridge(
     };
     el.addEventListener("focusin", onFocusIn);
     el.addEventListener("focusout", onFocusOut);
+    // A focused field that is removed (switching to another tool) sends no focusout in WebKit (WebView2 does), so the hold would
+    // stay for good and the notch would never close. Looked at whenever the page changes.
+    const mo = new MutationObserver(() => {
+      if (typing && !isTextField(document.activeElement)) holdOpen((typing = false));
+    });
+    mo.observe(el, { childList: true, subtree: true });
 
     return () => {
       ro.disconnect();
       offTop();
       offHover();
+      mo.disconnect();
       el.removeEventListener("focusin", onFocusIn);
       el.removeEventListener("focusout", onFocusOut);
       if (typing) holdOpen(false);
