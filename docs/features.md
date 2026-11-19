@@ -25,7 +25,7 @@ Pick the closed look under **Settings → Display**.
 Notch and capsule show a row of parts, centred and in the order you choose:
 
 - the cover of what is playing, a running timer, your Discord call;
-- AI quota rings (one colour per provider);
+- AI quota rings, one colour per provider: the weekly or other longer limit outside, the 5-hour session in a thinner ring inside;
 - song title (or the current lyric line);
 - hardware readings: CPU, RAM and GPU, plus network, power, battery and temperature if you turn them on;
 - equalizer, clock (with seconds and the date if you like), today's GitHub contributions, today's weather and your next calendar event;

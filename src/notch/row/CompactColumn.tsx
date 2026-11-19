@@ -34,7 +34,7 @@ import { useHeld } from "./CompactRow";
 import { NOTICE_BUTTON, NoticeButton, useNoticeHover } from "./NoticeButton";
 import { useRowVisible } from "./visibility";
 import { CAPTION_FONT, fontEpoch, measureText } from "./measure";
-import { RING, Ring, ringLabel, ringProviders, ringValue } from "./parts/Rings";
+import { RING, Ring, ringProps, ringProviders } from "./parts/Rings";
 import { ReadingView, readingWidth, useReadings } from "./parts/Readings";
 import { Clock, clockWidth } from "./parts/Clock";
 import { TimerPart, timerWidth } from "./parts/TimerPart";
@@ -217,7 +217,7 @@ export function CompactColumn({ parts, room, onSize }: { parts: boolean; room: n
       h: RING,
       draw: () => (
         <span className="flex items-center" style={{ gap: COLUMN.ringGap }}>
-          {slice.map((r) => <Ring key={r.id} id={r.id} value={ringValue(r)} label={ringLabel(r)} />)}
+          {slice.map((r) => <Ring key={r.id} id={r.id} {...ringProps(r)} />)}
         </span>
       ),
     };

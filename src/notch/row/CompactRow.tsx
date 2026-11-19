@@ -18,7 +18,7 @@ import { useRowVisible } from "./visibility";
 import { fontEpoch, measureText } from "./measure";
 import { Carousel } from "./Carousel";
 import { Marquee } from "./Marquee";
-import { RING, RING_GAP, Ring, ringLabel, ringProviders, ringValue } from "./parts/Rings";
+import { RING, RING_GAP, Ring, ringProps, ringProviders } from "./parts/Rings";
 import { READING_GAP, ReadingView, readingWidth, useReadings } from "./parts/Readings";
 import { Clock, clockWidth } from "./parts/Clock";
 import { TimerPart, timerWidth } from "./parts/TimerPart";
@@ -133,7 +133,7 @@ export function CompactRow({ room, scale, covered, onWidth }: { room: number; sc
     } else if (id === "rings" && rings.length) {
       parts.push({
         item: { id, kind: "carousel", items: rings.map(() => RING), gap: RING_GAP },
-        draw: (p) => <Carousel items={rings.map((r) => <Ring key={r.id} id={r.id} value={ringValue(r)} label={ringLabel(r)} />)} gap={RING_GAP} window={p.window!} width={p.width} paused={hovered || covered} />,
+        draw: (p) => <Carousel items={rings.map((r) => <Ring key={r.id} id={r.id} {...ringProps(r)} />)} gap={RING_GAP} window={p.window!} width={p.width} paused={hovered || covered} />,
       });
     } else if (id === "readings" && readings.length) {
       // useReadings already leaves the part out when it is off and gaming is not forcing it on.
