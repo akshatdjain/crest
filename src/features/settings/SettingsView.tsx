@@ -458,13 +458,13 @@ function Updates() {
   return (
     <Group title={t("Updates")} id="settings-updates">
       <Row label={t("Version {v}", { v: u.current ?? "–" })} hint={status}>
-        {!u.store && (
+        {!u.external && (
           <Button disabled={busy} onClick={() => void checkForUpdate()}>
             {t("Jetzt suchen")}
           </Button>
         )}
       </Row>
-      {u.store && <Row label={t("Updates kommen über den Microsoft Store")} />}
+      {u.external && <Row label={u.store ? t("Updates kommen über den Microsoft Store") : t("Updates kommen von dort, wo du Crest installiert hast")} />}
       <DiagnosticsRow />
       <PortableNote />
       <AnimatePresence initial={false}>
@@ -510,7 +510,7 @@ function Updates() {
           </motion.div>
         )}
       </AnimatePresence>
-      {!u.store && (
+      {!u.external && (
         <Row label={t("Automatisch suchen")} hint={t("Alle 4 Stunden, anonym bei GitHub, ohne deine Daten")}>
           <Switch label={t("Automatisch suchen")} checked={auto} onChange={(on) => updateSettings({ updates: { auto: on } })} />
         </Row>
